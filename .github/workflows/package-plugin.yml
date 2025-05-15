@@ -1,0 +1,29 @@
+name: Build Release Zip
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare plugin folder
+        run: |
+          mkdir webhookarm
+          cp -r webhookarm.php readme.txt release.sh assets includes webhookarm/
+
+      - name: Zip it
+        run: zip -r webhookarm.zip webhookarm
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: webhookarm.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
