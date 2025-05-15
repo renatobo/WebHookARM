@@ -7,6 +7,8 @@
  * Author: Renato Bonomini
  * Author URI: https://github.com/renatobo
  * License: GPLv2 or later
+ * GitHub Plugin URI: https://github.com/renatobo/WebHookARM
+ * GitHub Branch: main
  */
 
 defined('ABSPATH') or die('No script kiddies please!');
