@@ -3,7 +3,7 @@
  * Plugin Name: WebHookARM
  * Plugin URI: https://github.com/renatobo/WebHookARM
  * Description: WebHookARM is a lightweight WordPress plugin that listens for ARMember profile update events and securely sends the user data to a webhook endpoint (Google Apps Script Web App or Make.com). 
- * Version: 1.0.2
+ * Version: 1.0.0
  * Author: Renato Bonomini
  * Author URI: https://github.com/renatobo
  * License: GPLv2 or later
@@ -13,7 +13,7 @@
 
 defined('ABSPATH') or die('No script kiddies please!');
 
-define('BONO_ARM_WEBHOOK_VERSION', '1.0.2');
+define('BONO_ARM_WEBHOOK_VERSION', '1.0.0');
 
 // Conditionally register the webhook
 add_action('plugins_loaded', function () {
