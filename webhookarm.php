@@ -100,6 +100,10 @@ function bono_arm_webhook_settings_page() {
             Use a secure Web App URL and secret key (configured in Apps Script properties or in Make.com HTTP module).<br />
             <strong>Version:</strong> <?php echo BONO_ARM_WEBHOOK_VERSION; ?>
         </p>
+        <p>
+            <strong>Updates:</strong> To enable automatic updates for this plugin via GitHub, please install the 
+            <a href="https://github.com/afragen/github-updater" target="_blank" rel="noopener noreferrer">GitHub Updater</a> plugin.
+        </p>
         <form method="post" action="options.php">
             <?php
                 settings_fields('bono_arm_webhook');
@@ -141,6 +145,9 @@ function bono_arm_webhook_settings_page() {
             <a href="https://github.com/renatobo" target="_blank" rel="noopener noreferrer">
                 Author: Renato Bonomini
             </a>
+        </p>
+        <p>
+            💫 If you find this plugin useful, please consider <a href="https://github.com/renatobo/WebHookARM/stargazers" target="_blank" rel="noopener noreferrer">starring the repository on GitHub</a>!
         </p>
         <p>
             Example Google Apps Script: 

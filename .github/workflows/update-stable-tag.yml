@@ -1,0 +1,44 @@
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number to tag (e.g., 1.2.3)'
+        required: true
+        type: string
+
+jobs:
+  update-readme-stable-tag:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Extract version from readme.txt
+        id: extract_version
+        run: |
+          VERSION=$(grep -E '^Stable tag:' readme.txt | awk '{print $3}')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag already exists
+        id: check_tag
+        run: |
+          VERSION=${{ steps.extract_version.outputs.version }}
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists."
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "tag_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Tag new version
+        if: github.event_name != 'workflow_dispatch' && steps.check_tag.outputs.tag_exists == 'false'
+        run: |
+          VERSION=${{ steps.extract_version.outputs.version }}
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v$VERSION"
+          git push origin "v$VERSION"

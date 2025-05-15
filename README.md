@@ -17,6 +17,9 @@
    - Webhook URL (from your Google Apps Script Web App)  
    - Secret Key (must match the script's `AUTH_SECRET`)  
    - Enable/Disable toggle  
+4. (Optional) To enable automatic updates from GitHub:
+   - Install the [GitHub Updater plugin](https://github.com/afragen/github-updater).
+   - This plugin includes the required GitHub header and will notify you when updates are available.
 
 ## Google Apps Script Setup
 
@@ -47,3 +50,8 @@ Only requests with the correct secret key (header or query param) will be accept
 ## License
 
 GPLv2 or later
+
+## Updating the Plugin
+
+To receive automatic updates for WebHookARM directly from GitHub, install the [GitHub Updater plugin](https://github.com/afragen/github-updater).
+It will check for updates and allow one-click updates from your WordPress dashboard.

@@ -20,6 +20,11 @@ A lightweight WordPress plugin that listens for ARMember profile update events a
    - **Secret Key**: Must match `AUTH_SECRET` (Apps Script) or your endpoint config.
    - **Enable Webhook**: Toggle on/off.
 
+5. (Optional) To enable automatic updates from GitHub:
+   - Install the <a href="https://github.com/afragen/github-updater" target="_blank">GitHub Updater plugin</a>.
+   - Make sure this plugin includes the line "GitHub Plugin URI" in its header (already included).
+   - Updates will now appear like any other plugin in your WordPress dashboard.
+
 == Configuration ==
 
 For Google Apps Script:
@@ -45,6 +50,10 @@ No. This plugin specifically hooks into ARMember's `arm_update_profile_external`
 = How do I configure the Google Sheet? =
 Create a sheet tab matching `SHEET_NAME` and add a header row with:
 | Timestamp | User ID | User Login | User Email | Raw JSON Payload |
+
+= How do I enable automatic updates? =
+Install the GitHub Updater plugin (https://github.com/afragen/github-updater) to receive plugin updates directly from GitHub. 
+Once installed, it will automatically check for new versions of WebHookARM and allow one-click updates from your WordPress dashboard.
 
 = How do I get support? =
 Open an issue at https://github.com/renatobo/WebHookARM or contact Renato Bonomini.
