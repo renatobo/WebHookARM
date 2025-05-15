@@ -15,7 +15,7 @@ jobs:
       - name: Prepare plugin folder
         run: |
           mkdir webhookarm
-          cp -r webhookarm.php readme.txt release.sh assets includes webhookarm/
+          cp -r *.php readme.txt assets LICENSE webhookarm/
 
       - name: Zip it
         run: zip -r webhookarm.zip webhookarm
