@@ -79,8 +79,8 @@ function bono_arm_webhook_send_to_sheet($user_id, $form_data) {
 // Add admin settings page
 add_action('admin_menu', function () {
     add_options_page(
-        'ARMember to WebHook',
-        'ARMember to WebHook',
+        'ARMember WebHook',
+        'ARMember WebHook',
         'manage_options',
         'webhookarm',
         'bono_arm_webhook_settings_page'
@@ -151,9 +151,9 @@ function bono_arm_webhook_settings_page() {
         </p>
         <p>
             Example Google Apps Script: 
-            <a href="<?php echo esc_url(content_url('plugins/WebHookARM/webhookarm_appscript.gs')); ?>"
+            <a href="<?php echo esc_url(plugins_url('assets/webhookarm_appscript.gs', __FILE__)); ?>"
                target="_blank" rel="noopener noreferrer">
-                <?php echo esc_html(content_url('plugins/WebHookARM/webhookarm_appscript.gs')); ?>
+                <?php echo esc_html(plugins_url('assets/webhookarm_appscript.gs', __FILE__)); ?>
             </a>
         </p>
     </div>
