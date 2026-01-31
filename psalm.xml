@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+<psalm
+    errorLevel="4"
+    resolveFromConfigFile="true"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="https://getpsalm.org/schema/config"
+    xsi:schemaLocation="https://getpsalm.org/schema/config vendor/vimeo/psalm/config.xsd"
+    findUnusedBaselineEntry="true"
+    findUnusedCode="false"
+>
+    <projectFiles>
+        <directory name="." />
+        <ignoreFiles>
+            <directory name="vendor" />
+            <directory name=".github" />
+            <directory name=".claude" />
+        </ignoreFiles>
+    </projectFiles>
+    <plugins>
+        <pluginClass class="Psalm\PhpUnitPlugin\Plugin"/>
+    </plugins>
+    <issueHandlers>
+        <UndefinedConstant>
+            <errorLevel type="suppress">
+                <referencedConstant name="ABSPATH" />
+                <referencedConstant name="WP_DEBUG" />
+            </errorLevel>
+        </UndefinedConstant>
+        <UndefinedFunction>
+            <errorLevel type="suppress">
+                <referencedFunction name="add_action" />
+                <referencedFunction name="add_options_page" />
+                <referencedFunction name="add_query_arg" />
+                <referencedFunction name="defined" />
+                <referencedFunction name="do_settings_sections" />
+                <referencedFunction name="esc_attr" />
+                <referencedFunction name="esc_html" />
+                <referencedFunction name="esc_url" />
+                <referencedFunction name="error_log" />
+                <referencedFunction name="get_option" />
+                <referencedFunction name="get_userdata" />
+                <referencedFunction name="is_array" />
+                <referencedFunction name="is_wp_error" />
+                <referencedFunction name="plugins_url" />
+                <referencedFunction name="register_setting" />
+                <referencedFunction name="selected" />
+                <referencedFunction name="settings_fields" />
+                <referencedFunction name="submit_button" />
+                <referencedFunction name="wp_json_encode" />
+                <referencedFunction name="wp_remote_post" />
+                <referencedFunction name="wp_remote_retrieve_response_code" />
+            </errorLevel>
+        </UndefinedFunction>
+    </issueHandlers>
+</psalm>

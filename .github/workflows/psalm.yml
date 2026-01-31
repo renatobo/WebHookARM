@@ -1,0 +1,29 @@
+name: "Psalm Security Scan"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  psalm:
+    name: Psalm Static Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.0'
+          tools: psalm
+          coverage: none
+
+      - name: Run Psalm
+        run: psalm --output-format=github --no-cache --shepherd --stats
