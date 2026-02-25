@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(psalm:*)",
+      "Bash(gh:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "psalm --no-cache --output-format=text 2>/dev/null | head -20 || true",
+            "matcher": {
+              "file_path": "\\.php$"
+            }
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "reject",
+            "message": "Cannot edit lock files or env files directly",
+            "matcher": {
+              "file_path": "(\\.env|\\.lock)$"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,6 +1,8 @@
 # WebHookARM  
 **Author:** Renato Bonomini | **Version:** 1.0 | **License:** GPLv2 or later
 
+WebHookARM is a lightweight WordPress plugin that listens for ARMember profile update events and securely sends the user data to a webhook endpoint (Google Apps Script Web App or Make.com).
+
 ## Features
 
 - Hooks into `arm_update_profile_external` from ARMember  
