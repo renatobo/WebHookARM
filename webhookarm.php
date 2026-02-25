@@ -8,7 +8,7 @@
  * Author URI: https://github.com/renatobo
  * License: GPLv2 or later
  * Requires PHP: 8.0
- * Tested up to: 8.4
+ * Tested up to: 6.8.1
  * GitHub Plugin URI: https://github.com/renatobo/WebHookARM
  * GitHub Branch: main
  */
