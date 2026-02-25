@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Lint and Metadata Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@44454db4f0199b8b9685a5d763dc37cbf79108e1
+        with:
+          php-version: "8.2"
+          coverage: none
+
+      - name: PHP syntax lint
+        run: |
+          find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l
+
+      - name: Check version consistency
+        run: |
+          PLUGIN_VERSION=$(awk -F': ' '/^ \* Version:/{print $2}' webhookarm.php | tr -d '\r')
+          STABLE_TAG=$(awk -F': ' '/^Stable tag:/{print $2}' readme.txt | tr -d '\r')
+
+          if [ -z "$PLUGIN_VERSION" ] || [ -z "$STABLE_TAG" ]; then
+            echo "Could not extract plugin version or stable tag."
+            exit 1
+          fi
+
+          if [ "$PLUGIN_VERSION" != "$STABLE_TAG" ]; then
+            echo "Version mismatch: webhookarm.php Version=$PLUGIN_VERSION, readme.txt Stable tag=$STABLE_TAG"
+            exit 1
+          fi
+
+      - name: Check tested-up-to consistency
+        run: |
+          PLUGIN_TESTED=$(awk -F': ' '/^ \* Tested up to:/{print $2}' webhookarm.php | tr -d '\r')
+          README_TESTED=$(awk -F': ' '/^Tested up to:/{print $2}' readme.txt | tr -d '\r')
+
+          if [ -z "$PLUGIN_TESTED" ] || [ -z "$README_TESTED" ]; then
+            echo "Could not extract Tested up to values."
+            exit 1
+          fi
+
+          if [ "$PLUGIN_TESTED" != "$README_TESTED" ]; then
+            echo "Tested up to mismatch: webhookarm.php=$PLUGIN_TESTED, readme.txt=$README_TESTED"
+            exit 1
+          fi
