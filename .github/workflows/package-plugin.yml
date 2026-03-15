@@ -23,7 +23,7 @@ jobs:
         run: zip -r webhookarm.zip webhookarm
 
       - name: Upload release asset
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844
+        uses: softprops/action-gh-release@b25b93d384199fc0fc8c2e126b2d937a0cbeb2ae
         with:
           files: webhookarm.zip
         env:
