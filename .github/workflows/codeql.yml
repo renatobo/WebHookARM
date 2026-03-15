@@ -15,8 +15,14 @@ permissions:
 
 jobs:
   analyze:
-    name: Analyze (PHP)
+    name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - php
+          - actions
 
     steps:
       - name: Checkout repository
@@ -25,7 +31,7 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
         with:
-          languages: php
+          languages: ${{ matrix.language }}
 
       - name: Autobuild
         uses: github/codeql-action/autobuild@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858
