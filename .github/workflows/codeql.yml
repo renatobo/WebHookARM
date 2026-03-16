@@ -21,7 +21,6 @@ jobs:
       fail-fast: false
       matrix:
         language:
-          - php
           - actions
 
     steps:
