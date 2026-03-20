@@ -1,36 +1,20 @@
 #!/bin/bash
 
-# Prompt for the new version
-read -p "Enter new version (e.g. 1.1.0): " VERSION
+set -euo pipefail
 
-# Validate version format: must be X.Y.Z
+read -r -p "Enter new version (e.g. 1.2.0): " VERSION
+
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "❌ Invalid version format. Use semantic versioning: X.Y.Z (e.g. 1.2.3)"
+  echo "Invalid version format. Use semantic versioning: X.Y.Z"
   exit 1
 fi
 
-TAG="v$VERSION"
-
-# Update version in readme.txt
 sed -i '' "s/^Stable tag: .*/Stable tag: $VERSION/" readme.txt
+sed -i '' "s/^[[:space:]]*\\*[[:space:]]*Version:[[:space:]]*.*/ * Version:           $VERSION/" webhookarm.php
+sed -i '' "s/^\(define('BONO_ARM_WEBHOOK_VERSION', '\)[^']*\(');\)$/\1$VERSION\2/" webhookarm.php
 
-# Update version in main plugin file
-sed -i '' "s/^[[:space:]]*\**[[:space:]]*Version:[[:space:]]*.*/ * Version: $VERSION/" webhookarm.php
-sed -i '' "s/^\(.*BONO_ARM_WEBHOOK_VERSION', '\)[^']*\('.*\)$/\1$VERSION\2/" webhookarm.php
-
-# Git add and commit
-git add readme.txt webhookarm.php
-git commit -m "🔖 Bump version to $VERSION"
-git push origin main
-
-echo "✅ Version updated to $VERSION and pushed to main."
-echo "⏳ Waiting for GitHub Action to auto-tag version $TAG..."
-echo "👉 Monitor progress at: https://github.com/renatobo/WebHookARM/actions"
-
-# Create GitHub release using gh CLI
-if command -v gh &> /dev/null; then
-  CHANGELOG=$(git log "$(git describe --tags --abbrev=0)..HEAD" --pretty=format:"- %s" --no-merges)
-  gh release create "$TAG" --title "WebHookARM $VERSION" --notes "$CHANGELOG" || echo "⚠️ GitHub release creation failed or already exists."
-else
-  echo "⚠️ GitHub CLI (gh) not found. Skipping release creation."
-fi
+echo "Updated plugin version metadata to $VERSION."
+echo "Next:"
+echo "1. Update readme and README release notes for $VERSION."
+echo "2. Commit and push to main."
+echo "3. GitHub Actions will tag v$VERSION, build the release zip, and publish the GitHub release."

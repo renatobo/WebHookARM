@@ -1,0 +1,301 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="750"
+   height="240"
+   viewBox="0 0 750 240"
+   fill="none"
+   version="1.1"
+   id="svg23"
+   sodipodi:docname="webhookarm-settings-banner.svg"
+   inkscape:version="1.3.2 (091e20e, 2023-11-25)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview23"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="1.1398805"
+     inkscape:cx="231.16458"
+     inkscape:cy="32.0209"
+     inkscape:window-width="1736"
+     inkscape:window-height="1102"
+     inkscape:window-x="0"
+     inkscape:window-y="39"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg23" />
+  <defs
+     id="defs5">
+    <linearGradient
+       id="bg"
+       x1="28"
+       y1="18"
+       x2="720"
+       y2="220"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         stop-color="#FAF4EE"
+         id="stop1" />
+      <stop
+         offset="0.52"
+         stop-color="#F4F7FB"
+         id="stop2" />
+      <stop
+         offset="1"
+         stop-color="#EEF5F2"
+         id="stop3" />
+    </linearGradient>
+    <linearGradient
+       id="panel"
+       x1="438"
+       y1="42"
+       x2="684"
+       y2="202"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         stop-color="#FF7A59"
+         id="stop4" />
+      <stop
+         offset="1"
+         stop-color="#0F7AC9"
+         id="stop5" />
+    </linearGradient>
+  </defs>
+  <rect
+     width="750"
+     height="240"
+     rx="0"
+     fill="url(#bg)"
+     id="rect5" />
+  <circle
+     cx="78"
+     cy="46"
+     r="82"
+     fill="#FF7A59"
+     fill-opacity="0.08"
+     id="circle5" />
+  <circle
+     cx="696"
+     cy="196"
+     r="96"
+     fill="#0F7AC9"
+     fill-opacity="0.08"
+     id="circle6" />
+  <path
+     d="M0 66H750"
+     stroke="#D75A3B"
+     stroke-opacity="0.09"
+     stroke-width="2"
+     id="path6" />
+  <path
+     d="M0 204H750"
+     stroke="#0F7AC9"
+     stroke-opacity="0.08"
+     stroke-width="2"
+     id="path7" />
+  <text
+     x="28"
+     y="106"
+     fill="#111827"
+     font-family="sans-serif"
+     font-size="46"
+     font-weight="800"
+     id="text8">WebHookARM</text>
+  <text
+     x="28"
+     y="136"
+     fill="#334155"
+     font-family="sans-serif"
+     font-size="18px"
+     font-weight="600"
+     id="text9">ARMember updates to secure webhooks</text>
+  <text
+     x="28"
+     y="164"
+     fill="#475569"
+     font-family="sans-serif"
+     font-size="14"
+     font-weight="500"
+     id="text10">Apps Script, Make.com, and custom receivers with</text>
+  <text
+     x="28"
+     y="184"
+     fill="#475569"
+     font-family="sans-serif"
+     font-size="14"
+     font-weight="500"
+     id="text11">shared-secret validation and Git Updater releases.</text>
+  <rect
+     x="28"
+     y="196"
+     width="132"
+     height="26"
+     rx="13"
+     fill="#DCEEFE"
+     id="rect11" />
+  <text
+     x="94"
+     y="213"
+     text-anchor="middle"
+     fill="#0F5E9C"
+     font-family="sans-serif"
+     font-size="13"
+     font-weight="700"
+     id="text12">ARMember Hook</text>
+  <rect
+     x="170"
+     y="196"
+     width="118"
+     height="26"
+     rx="13"
+     fill="#FFE4DB"
+     id="rect12" />
+  <text
+     x="229"
+     y="213"
+     text-anchor="middle"
+     fill="#C2410C"
+     font-family="sans-serif"
+     font-size="13"
+     font-weight="700"
+     id="text13">JSON POST</text>
+  <rect
+     x="298"
+     y="196"
+     width="136"
+     height="26"
+     rx="13"
+     fill="#DCF4E9"
+     id="rect13" />
+  <text
+     x="366"
+     y="213"
+     text-anchor="middle"
+     fill="#0F766E"
+     font-family="sans-serif"
+     font-size="13"
+     font-weight="700"
+     id="text14">Git Updater Ready</text>
+  <g
+     id="g23">
+    <rect
+       x="438"
+       y="42"
+       width="250"
+       height="156"
+       rx="24"
+       fill="url(#panel)"
+       id="rect14" />
+    <rect
+       x="456"
+       y="58"
+       width="102"
+       height="126"
+       rx="18"
+       fill="#F8FAFC"
+       id="rect15" />
+    <rect
+       x="469"
+       y="72"
+       width="76"
+       height="18"
+       rx="9"
+       fill="#111827"
+       id="rect16" />
+    <rect
+       x="469"
+       y="102"
+       width="54"
+       height="10"
+       rx="5"
+       fill="#DCEEFE"
+       id="rect17" />
+    <rect
+       x="469"
+       y="120"
+       width="66"
+       height="10"
+       rx="5"
+       fill="#FFE4DB"
+       id="rect18" />
+    <rect
+       x="469"
+       y="138"
+       width="60"
+       height="10"
+       rx="5"
+       fill="#DCF4E9"
+       id="rect19" />
+    <rect
+       x="469"
+       y="156"
+       width="42"
+       height="10"
+       rx="5"
+       fill="#CBD5E1"
+       id="rect20" />
+    <rect
+       x="582"
+       y="72"
+       width="86"
+       height="56"
+       rx="16"
+       fill="#111827"
+       id="rect21" />
+    <text
+       x="625"
+       y="106"
+       text-anchor="middle"
+       fill="#F8FAFC"
+       font-family="monospace"
+       font-size="20"
+       font-weight="700"
+       id="text21">{ }</text>
+    <rect
+       x="582"
+       y="142"
+       width="86"
+       height="30"
+       rx="15"
+       fill="#F8FAFC"
+       id="rect22" />
+    <text
+       x="625"
+       y="161"
+       text-anchor="middle"
+       fill="#111827"
+       font-family="sans-serif"
+       font-size="13"
+       font-weight="800"
+       id="text22">POST JSON</text>
+    <path
+       d="M548 108C563 108 568 108 580 108"
+       stroke="#FDE68A"
+       stroke-width="6"
+       stroke-linecap="round"
+       stroke-dasharray="9 12"
+       id="path22" />
+    <path
+       d="M576 102L582 108L576 114"
+       stroke="#FDE68A"
+       stroke-width="6"
+       stroke-linecap="round"
+       stroke-linejoin="round"
+       id="path23" />
+  </g>
+  <text
+     x="172.71803"
+     y="41.159275"
+     text-anchor="end"
+     fill="#94a3b8"
+     font-family="sans-serif"
+     font-size="12px"
+     font-weight="700"
+     id="text23">renatobo/WebHookARM</text>
+</svg>

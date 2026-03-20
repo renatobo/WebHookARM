@@ -3,18 +3,18 @@
 [![WordPress](https://img.shields.io/badge/WordPress-Plugin-21759B?logo=wordpress&logoColor=white)](https://wordpress.org/)
 [![ARMember](https://img.shields.io/badge/ARMember-Required-ff6f00)](https://www.armemberplugin.com/)
 [![PHP](https://img.shields.io/badge/PHP-%3E%3D%208.0-777bb4?logo=php&logoColor=white)](https://www.php.net/)
-[![WP Tested](https://img.shields.io/badge/WP%20Tested-6.8.1-21759B)](https://wordpress.org/)
+[![WP Tested](https://img.shields.io/badge/WP%20Tested-6.9.4-21759B)](https://wordpress.org/)
 [![License: GPL v2 or later](https://img.shields.io/badge/License-GPL%20v2%20or%20later-blue.svg)](https://www.gnu.org/licenses/gpl-2.0.html)
 
-Lightweight WordPress plugin that listens to ARMember profile updates and sends user data as JSON to a webhook endpoint (Google Apps Script Web App, Make.com, or any compatible receiver).
+Send ARMember profile updates to a secure JSON webhook for Google Apps Script, Make.com, or custom integrations.
 
 ## Features
 
 - Hooks into ARMember `arm_update_profile_external` profile update event
 - Sends payload as `application/json` via `POST`
 - Adds shared secret in both query string and header for flexible receiver validation
-- Configurable from WordPress admin: **Settings -> ARMember WebHook**
-- Optional GitHub-based plugin updates via [GitHub Updater](https://github.com/afragen/github-updater)
+- Configurable from a tabbed WordPress admin screen: **Settings -> ARMember WebHook**
+- Git Updater-compatible release assets published automatically from GitHub Actions
 
 ## Requirements
 
@@ -98,10 +98,32 @@ For security reporting, see [SECURITY.md](SECURITY.md).
 
 ## Automatic Updates (GitHub)
 
-This plugin includes GitHub updater headers. To receive dashboard updates:
+This plugin includes Git Updater-compatible headers and release assets. To receive dashboard updates:
 
-1. Install [GitHub Updater](https://github.com/afragen/github-updater).
+1. Install [Git Updater](https://github.com/afragen/git-updater).
 2. Keep this repository configured as your plugin source.
+3. Use published GitHub releases as the update source; the repository automation builds the versioned zip asset automatically when a new version is tagged.
+
+## Releases
+
+Releases are generated automatically with GitHub Actions:
+
+1. Update the version in `webhookarm.php` and `readme.txt`.
+2. Push the change to `main`.
+3. The `update-stable-tag` workflow creates the matching `vX.Y.Z` tag.
+4. The `package-plugin` workflow builds the plugin zip and publishes the GitHub release asset.
+
+Release packaging keeps only WordPress runtime files:
+
+- Keeps `README.md`
+- Removes all other `.md` files
+- Removes `.sh` scripts that are not used by WordPress at runtime
+
+Latest planned release: `1.3.0`
+
+- Adds capability and settings-page hardening plus clearer admin notices for incomplete or non-HTTPS webhook setups.
+- Updates compatibility metadata for WordPress `6.9.4`.
+- Keeps release and security documentation aligned with the current supported release line.
 
 ## Troubleshooting
 
@@ -124,6 +146,11 @@ Yes. Any endpoint that accepts authenticated JSON `POST` requests is supported.
 
 - Open an issue: <https://github.com/renatobo/WebHookARM/issues>
 - Repository: <https://github.com/renatobo/WebHookARM>
+
+## Related repositories
+
+- [ARMember Extended API Services (bono_arm_api)](https://github.com/renatobo/bono_arm_api)
+- [TelegrARM](https://github.com/renatobo/TelegrARM)
 
 ## License
 

@@ -2,12 +2,12 @@
 
 ## Supported Versions
 
-Security fixes are provided only for the latest released major/minor line of **WebHookARM**. The repository currently has a **1.0.0** release.  [oai_citation:0‡GitHub](https://github.com/renatobo/WebHookARM)
+Security fixes are provided only for the latest released major/minor line of **WebHookARM**. The repository currently targets the **1.3.x** release line.
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 1.0.x   | :white_check_mark: |
-| < 1.0   | :x:                |
+| 1.3.x   | :white_check_mark: |
+| < 1.3   | :x:                |
 
 If you are running an older fork or a modified copy, update to the latest release on `main` before reporting.
 

@@ -1,4 +1,4 @@
-name: Update Stable Tag
+name: Tag Stable Version
 
 on:
   push:
@@ -19,36 +19,38 @@ jobs:
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout repo
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Fetch all tags
-        run: git fetch --tags
-
-      - name: Extract version from readme.txt
+      - name: Determine version
         id: extract_version
         run: |
-          VERSION=$(grep -E '^Stable tag:' readme.txt | awk '{print $3}')
+          set -e
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=$(grep -E '^Stable tag:' readme.txt | awk '{print $3}')
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Check if tag already exists
         id: check_tag
         run: |
+          set -e
           VERSION=${{ steps.extract_version.outputs.version }}
           if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-            echo "Tag v$VERSION already exists, skipping."
             echo "tag_exists=true" >> $GITHUB_OUTPUT
           else
-            echo "Tag v$VERSION does not exist, will create it."
             echo "tag_exists=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Tag new version
-        if: github.event_name != 'workflow_dispatch' && steps.check_tag.outputs.tag_exists == 'false'
+        if: steps.check_tag.outputs.tag_exists == 'false'
         run: |
+          set -e
           VERSION=${{ steps.extract_version.outputs.version }}
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag "v$VERSION"
-          git push origin "v$VERSION" || echo "Tag push failed, but continuing workflow"
+          git push origin "v$VERSION"

@@ -1,4 +1,4 @@
-name: Build Release Zip
+name: Release Plugin Zip
 
 on:
   push:
@@ -12,19 +12,26 @@ jobs:
       contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-
-      - name: Prepare plugin folder
-        run: |
-          mkdir webhookarm
-          cp -r *.php readme.txt assets LICENSE webhookarm/
-
-      - name: Zip it
-        run: zip -r webhookarm.zip webhookarm
-
-      - name: Upload release asset
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844
+        uses: actions/checkout@v6
         with:
-          files: webhookarm.zip
+          fetch-depth: 0
+
+      - name: Build plugin package
+        id: build
+        run: |
+          chmod +x build.sh
+          ZIP_PATH="$(./build.sh | sed -n 's/^Created //p')"
+          if [[ -z "$ZIP_PATH" || ! -f "$ZIP_PATH" ]]; then
+            echo "Failed to locate built zip file."
+            exit 1
+          fi
+          echo "zip_path=$ZIP_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release and upload asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.build.outputs.zip_path }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -2,13 +2,16 @@
 Contributors: renatobonomini
 Tags: armember, webhook, google sheets, apps script, make, automation, profile update
 Requires at least: 5.0
-Tested up to: 6.8.1
+Tested up to: 6.9.4
 Requires PHP: 8.0
-Stable tag: 1.1.0
+Stable tag: 1.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-WebHookARM listens for ARMember profile updates and sends user data as JSON to a secure webhook endpoint (Google Apps Script, Make.com, or custom API).
+GitHub Plugin URI: https://github.com/renatobo/WebHookARM
+GitHub Branch: main
+
+Send ARMember profile updates to a secure JSON webhook for Google Apps Script, Make.com, or custom integrations.
 
 == Description ==
 
@@ -21,8 +24,8 @@ Key capabilities:
 * ARMember profile update trigger
 * JSON webhook delivery (`application/json`)
 * Shared secret passed as both query parameter and header
-* Admin settings page under **Settings > ARMember WebHook**
-* Optional update flow through GitHub Updater
+* Tabbed admin settings page under **Settings > ARMember WebHook**
+* Git Updater-compatible release assets published automatically from GitHub Actions
 
 The plugin works well with:
 
@@ -94,13 +97,24 @@ To support different receiver implementations. Your endpoint can validate one or
 
 = How do I get plugin updates from GitHub? =
 
-Install the GitHub Updater plugin: https://github.com/afragen/github-updater
+Install the Git Updater plugin: https://github.com/afragen/git-updater
 
 = Where do I report security issues? =
 
 See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 
 == Changelog ==
+
+= 1.3.0 =
+* Added translation hooks, capability checks, and clearer admin notices around incomplete or non-HTTPS webhook configuration.
+* Refreshed compatibility metadata for WordPress 6.9.4 and shortened the plugin summary to satisfy the official readme validator limit.
+* Hardened release documentation and security policy details for the current supported release line.
+
+= 1.2.0 =
+* Reworked the settings screen to match the tabbed WordPress admin UI used in the eventon-apify plugin.
+* Added Git Updater release asset metadata and a Plugins screen Settings shortcut.
+* Switched release packaging to an automated GitHub Actions flow that tags, builds, and publishes versioned zip releases.
+* Reduced debug logging detail so request payloads are not written to logs.
 
 = 1.1.0 =
 * Added enable/disable gate for profile update webhook registration.
@@ -112,5 +126,8 @@ See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 
 == Upgrade Notice ==
 
-= 1.1.0 =
-Recommended update for current configuration flow and latest documented setup.
+= 1.3.0 =
+Recommended update for improved admin hardening, clearer webhook safety guidance, and WordPress 6.9.4 compatibility metadata.
+
+= 1.2.0 =
+Recommended update for the new settings UI, Git Updater compatibility, and automated GitHub releases.

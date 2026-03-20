@@ -30,8 +30,8 @@ jobs:
 
       - name: Check version consistency
         run: |
-          PLUGIN_VERSION=$(awk -F': ' '/^ \* Version:/{print $2}' webhookarm.php | tr -d '\r')
-          STABLE_TAG=$(awk -F': ' '/^Stable tag:/{print $2}' readme.txt | tr -d '\r')
+          PLUGIN_VERSION=$(sed -n 's/^[[:space:]]*\*[[:space:]]*Version:[[:space:]]*//p' webhookarm.php | head -n 1 | tr -d '\r')
+          STABLE_TAG=$(sed -n 's/^Stable tag:[[:space:]]*//p' readme.txt | head -n 1 | tr -d '\r')
 
           if [ -z "$PLUGIN_VERSION" ] || [ -z "$STABLE_TAG" ]; then
             echo "Could not extract plugin version or stable tag."
@@ -45,8 +45,8 @@ jobs:
 
       - name: Check tested-up-to consistency
         run: |
-          PLUGIN_TESTED=$(awk -F': ' '/^ \* Tested up to:/{print $2}' webhookarm.php | tr -d '\r')
-          README_TESTED=$(awk -F': ' '/^Tested up to:/{print $2}' readme.txt | tr -d '\r')
+          PLUGIN_TESTED=$(sed -n 's/^[[:space:]]*\*[[:space:]]*Tested up to:[[:space:]]*//p' webhookarm.php | head -n 1 | tr -d '\r')
+          README_TESTED=$(sed -n 's/^Tested up to:[[:space:]]*//p' readme.txt | head -n 1 | tr -d '\r')
 
           if [ -z "$PLUGIN_TESTED" ] || [ -z "$README_TESTED" ]; then
             echo "Could not extract Tested up to values."
