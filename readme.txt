@@ -4,7 +4,7 @@ Tags: armember, webhook, google sheets, apps script, make, automation, profile u
 Requires at least: 5.0
 Tested up to: 6.9.4
 Requires PHP: 8.0
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -105,6 +105,9 @@ See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 
 == Changelog ==
 
+= 1.3.1 =
+* Maintenance patch release to keep plugin version metadata, packaging, and release files synchronized across the repository.
+
 = 1.3.0 =
 * Added translation hooks, capability checks, and clearer admin notices around incomplete or non-HTTPS webhook configuration.
 * Refreshed compatibility metadata for WordPress 6.9.4 and shortened the plugin summary to satisfy the official readme validator limit.
@@ -125,6 +128,9 @@ See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 * Initial public release.
 
 == Upgrade Notice ==
+
+= 1.3.1 =
+Maintenance patch release with synchronized version metadata and packaging.
 
 = 1.3.0 =
 Recommended update for improved admin hardening, clearer webhook safety guidance, and WordPress 6.9.4 compatibility metadata.

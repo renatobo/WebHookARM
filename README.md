@@ -119,11 +119,9 @@ Release packaging keeps only WordPress runtime files:
 - Removes all other `.md` files
 - Removes `.sh` scripts that are not used by WordPress at runtime
 
-Latest planned release: `1.3.0`
+Latest planned release: `1.3.1`
 
-- Adds capability and settings-page hardening plus clearer admin notices for incomplete or non-HTTPS webhook setups.
-- Updates compatibility metadata for WordPress `6.9.4`.
-- Keeps release and security documentation aligned with the current supported release line.
+- Maintenance patch release to keep plugin version metadata, packaging, and release files synchronized across the repository.
 
 ## Troubleshooting
 
