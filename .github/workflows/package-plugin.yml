@@ -28,7 +28,7 @@ jobs:
           echo "zip_path=$ZIP_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub release and upload asset
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: ${{ steps.build.outputs.zip_path }}
           generate_release_notes: true
