@@ -9,6 +9,8 @@ Main files:
 - `readme.txt` (WordPress.org readme format)
 - `README.md` (GitHub readme)
 - `assets/webhookarm_appscript.gs` (sample Apps Script receiver)
+- `build.sh` (package a release zip from the current tree)
+- `release.sh` (bump version metadata in `webhookarm.php` and `readme.txt`)
 
 ## Expectations for Changes
 
@@ -21,6 +23,11 @@ Main files:
   - secret key validation support
   - HTTPS webhook usage guidance
   - no sensitive data exposure in production logs
+- Release flow is documented as GitHub Actions driven:
+  - update version metadata first
+  - push to `main`
+  - `update-stable-tag` creates the matching tag
+  - `package-plugin` builds and publishes the release asset
 
 ## Versioning
 
@@ -35,6 +42,7 @@ Before finishing changes:
 - Confirm no PHP syntax errors in edited files.
 - Confirm `readme.txt` remains valid WordPress readme format.
 - Confirm docs match actual behavior in `webhookarm.php`.
+- Confirm release notes and version metadata stay aligned with `build.sh` and `release.sh` if either workflow is touched.
 
 ## Non-Goals
 
