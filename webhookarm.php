@@ -3,10 +3,11 @@
  * Plugin Name:       WebHookARM
  * Plugin URI:        https://github.com/renatobo/WebHookARM
  * Description:       Send ARMember profile updates to a secure JSON webhook for Google Apps Script, Make.com, or custom integrations.
- * Version:           1.3.1
- * Requires at least: 5.0
+ * Version:           2.0.0
+ * Requires at least: 6.5
  * Requires PHP:      8.0
- * Tested up to:      6.9.4
+ * Requires Plugins:  armember-membership
+ * Tested up to:      7.0.2
  * Author:            Renato Bonomini
  * Author URI:        https://github.com/renatobo
  * License:           GPLv2 or later
@@ -26,10 +27,12 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('BONO_ARM_WEBHOOK_VERSION', '1.3.1');
+define('BONO_ARM_WEBHOOK_VERSION', '2.0.0');
 define('BONO_ARM_WEBHOOK_OPTION_ENABLE', 'bono_arm_webhook_profileupdates_enable');
 define('BONO_ARM_WEBHOOK_OPTION_URL', 'bono_arm_webhook_url');
 define('BONO_ARM_WEBHOOK_OPTION_SECRET', 'bono_arm_webhook_secret');
+define('BONO_ARM_WEBHOOK_DELIVERY_HOOK', 'bono_arm_webhook_process_delivery');
+define('BONO_ARM_WEBHOOK_DELIVERY_PREFIX', 'bono_arm_webhook_delivery_');
 
 if (version_compare(PHP_VERSION, '8.0.0', '<')) {
     add_action('admin_notices', 'bono_arm_webhook_php_version_notice');
@@ -41,6 +44,8 @@ add_action('plugins_loaded', 'bono_arm_webhook_bootstrap');
 add_action('admin_menu', 'bono_arm_webhook_add_settings_page');
 add_action('admin_init', 'bono_arm_webhook_register_settings');
 add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'bono_arm_webhook_add_plugin_action_links');
+
+require_once __DIR__ . '/includes/delivery.php';
 
 /**
  * Load plugin translations.
@@ -72,8 +77,10 @@ function bono_arm_webhook_php_version_notice() {
  */
 function bono_arm_webhook_bootstrap() {
     if (bono_arm_webhook_is_enabled()) {
-        add_action('arm_update_profile_external', 'bono_arm_webhook_send_to_sheet', 10, 2);
+        add_action('arm_update_profile_external', 'bono_arm_webhook_queue_profile_update', 10, 2);
     }
+
+    add_action(BONO_ARM_WEBHOOK_DELIVERY_HOOK, 'bono_arm_webhook_process_delivery');
 }
 
 /**
@@ -101,70 +108,6 @@ function bono_arm_webhook_get_webhook_url() {
  */
 function bono_arm_webhook_get_secret() {
     return (string) get_option(BONO_ARM_WEBHOOK_OPTION_SECRET, '');
-}
-
-/**
- * Handle ARMember profile updates and send to webhook.
- *
- * @param int   $user_id   User ID.
- * @param array $form_data ARMember form data array.
- */
-function bono_arm_webhook_send_to_sheet($user_id, $form_data) {
-    $webhook_url = bono_arm_webhook_get_webhook_url();
-    $secret_key = bono_arm_webhook_get_secret();
-
-    if ('' === $webhook_url || '' === $secret_key) {
-        return;
-    }
-
-    $user = get_userdata((int) $user_id);
-
-    $payload = is_array($form_data) ? $form_data : array();
-    $payload['user_id'] = (int) $user_id;
-    $payload['user_login'] = $user ? $user->user_login : '';
-    $payload['user_email'] = $user ? $user->user_email : '';
-
-    $request_url = add_query_arg(
-        array(
-            'key' => $secret_key,
-            'action' => 'profile_update',
-        ),
-        $webhook_url
-    );
-
-    $response = wp_remote_post(
-        $request_url,
-        array(
-            'method' => 'POST',
-            'redirection' => 5,
-            'timeout' => 10,
-            'headers' => array(
-                'Content-Type' => 'application/json',
-                'X-Security-Key' => $secret_key,
-            ),
-            'body' => wp_json_encode($payload),
-        )
-    );
-
-    if (defined('WP_DEBUG') && WP_DEBUG) {
-        if (is_wp_error($response)) {
-            error_log(
-                sprintf(
-                    'WebHookARM webhook failed for user %d: %s',
-                    (int) $user_id,
-                    $response->get_error_message()
-                )
-            );
-        } else {
-            error_log(
-                sprintf(
-                    'WebHookARM webhook sent for user %d. Response code: %d',
-                    (int) $user_id,
-                    (int) wp_remote_retrieve_response_code($response)
-                )
-            );
-        }
-    }
 }
 
 /**
@@ -271,6 +214,17 @@ function bono_arm_webhook_sanitize_url($value) {
         return bono_arm_webhook_get_webhook_url();
     }
 
+    $allow_insecure = (bool) apply_filters('bono_arm_webhook_allow_insecure_url', false, $sanitized);
+    if (!$allow_insecure && !bono_arm_webhook_is_https_url($sanitized)) {
+        add_settings_error(
+            'bono_arm_webhook',
+            'bono_arm_webhook_insecure_url',
+            __('Webhook URLs must use HTTPS. Developers may opt in to local HTTP endpoints with the bono_arm_webhook_allow_insecure_url filter.', 'webhookarm')
+        );
+
+        return bono_arm_webhook_get_webhook_url();
+    }
+
     return $sanitized;
 }
 
@@ -285,7 +239,23 @@ function bono_arm_webhook_sanitize_secret($value) {
         return '';
     }
 
-    return (string) preg_replace('/[\r\n\t]+/', '', trim($value));
+    $secret = (string) preg_replace('/[\r\n\t]+/', '', trim($value));
+
+    if ('' === $secret) {
+        return bono_arm_webhook_get_secret();
+    }
+
+    if (strlen($secret) < 16) {
+        add_settings_error(
+            'bono_arm_webhook',
+            'bono_arm_webhook_weak_secret',
+            __('Use a secret containing at least 16 characters.', 'webhookarm')
+        );
+
+        return bono_arm_webhook_get_secret();
+    }
+
+    return $secret;
 }
 
 /**
@@ -316,7 +286,7 @@ function bono_arm_webhook_settings_page() {
     $git_updater_url = 'https://github.com/afragen/git-updater';
     $banner_url = plugins_url('assets/webhookarm-settings-banner.svg', __FILE__);
     $sample_script_url = plugins_url('assets/webhookarm_appscript.gs', __FILE__);
-    $example_request_url = 'https://hooks.example.com/profile-sync?action=profile_update&key=your-secret';
+    $example_request_url = 'https://hooks.example.com/profile-sync?action=profile_update&delivery=uuid&timestamp=unix-time&signature=hmac';
     $payload_example = wp_json_encode(
         array(
             'armember_field_key' => 'Updated value',
@@ -385,6 +355,15 @@ function bono_arm_webhook_settings_page() {
                     <p>
                         <strong><?php esc_html_e('Non-HTTPS webhook URL configured.', 'webhookarm'); ?></strong>
                         <?php esc_html_e('HTTP endpoints can be useful for local testing, but production webhook traffic should use HTTPS so the shared secret and profile data are not sent in clear text.', 'webhookarm'); ?>
+                    </p>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($webhook_enabled && defined('DISABLE_WP_CRON') && DISABLE_WP_CRON) : ?>
+                <div class="notice notice-warning inline">
+                    <p>
+                        <strong><?php esc_html_e('WordPress cron is disabled.', 'webhookarm'); ?></strong>
+                        <?php esc_html_e('Webhook delivery is queued through WP-Cron. Confirm that the server invokes wp-cron.php on a regular schedule.', 'webhookarm'); ?>
                     </p>
                 </div>
             <?php endif; ?>
@@ -468,14 +447,14 @@ function bono_arm_webhook_settings_page() {
                                     type="password"
                                     class="regular-text code"
                                     name="<?php echo esc_attr(BONO_ARM_WEBHOOK_OPTION_SECRET); ?>"
-                                    value="<?php echo esc_attr($secret_key); ?>"
-                                    autocomplete="off"
-                                    placeholder="<?php echo esc_attr__('shared-secret', 'webhookarm'); ?>"
+                                    value=""
+                                    autocomplete="new-password"
+                                    placeholder="<?php echo esc_attr('' !== $secret_key ? __('Secret configured; leave blank to keep it', 'webhookarm') : __('Enter at least 16 characters', 'webhookarm')); ?>"
                                 />
                                 <small>
                                     <?php
                                     echo wp_kses(
-                                        __('Sent as both the <code>key</code> query parameter and the <code>X-Security-Key</code> header.', 'webhookarm'),
+                                        __('Used to sign each request with HMAC-SHA256. The secret itself is never transmitted.', 'webhookarm'),
                                         array('code' => array())
                                     );
                                     ?>
@@ -535,11 +514,13 @@ function bono_arm_webhook_settings_page() {
                             <div class="webhookarm-code-card">
                                 <strong><?php esc_html_e('Headers', 'webhookarm'); ?></strong>
                                 <span><code>Content-Type: application/json</code></span>
-                                <span><code>X-Security-Key: your-secret</code></span>
+                                <span><code>X-WebhookARM-Signature: sha256=hmac</code></span>
+                                <span><code>X-WebhookARM-Timestamp: unix-time</code></span>
                             </div>
                             <div class="webhookarm-code-card">
                                 <strong><?php esc_html_e('Query parameters', 'webhookarm'); ?></strong>
-                                <span><code>key=your-secret</code></span>
+                                <span><code>signature=hmac</code></span>
+                                <span><code>timestamp=unix-time</code></span>
                                 <span><code>action=profile_update</code></span>
                             </div>
                         </div>
@@ -582,9 +563,9 @@ function bono_arm_webhook_settings_page() {
                                 );
                                 ?>
                             </li>
-                            <li><?php echo wp_kses(__('Set <code>AUTH_SECRET</code> and <code>SHEET_NAME</code> in Script properties.', 'webhookarm'), array('code' => array())); ?></li>
+                            <li><?php echo wp_kses(__('Set <code>WA_AUTH_SECRET</code> and <code>WA_SHEET_NAME</code> in Script properties.', 'webhookarm'), array('code' => array())); ?></li>
                             <li><?php esc_html_e('Deploy the project as a Web App and paste that URL into the Webhook tab.', 'webhookarm'); ?></li>
-                            <li><?php esc_html_e('Validate the secret from either the query string or the request header before writing rows.', 'webhookarm'); ?></li>
+                            <li><?php esc_html_e('The sample validates the timestamped request signature before writing rows.', 'webhookarm'); ?></li>
                         </ol>
                     </div>
                 </section>
@@ -603,7 +584,7 @@ function bono_arm_webhook_settings_page() {
                         <ol class="webhookarm-steps">
                             <li><?php esc_html_e('Create an HTTP webhook or custom webhook scenario entry point.', 'webhookarm'); ?></li>
                             <li><?php echo wp_kses(__('Accept <code>POST</code> requests with an <code>application/json</code> body.', 'webhookarm'), array('code' => array())); ?></li>
-                            <li><?php echo wp_kses(__('Validate the shared secret from <code>key</code> or <code>X-Security-Key</code>.', 'webhookarm'), array('code' => array())); ?></li>
+                            <li><?php echo wp_kses(__('Validate <code>X-WebhookARM-Signature</code> against the raw body and timestamp.', 'webhookarm'), array('code' => array())); ?></li>
                             <li><?php echo wp_kses(__('Map ARMember field keys plus <code>user_id</code>, <code>user_login</code>, and <code>user_email</code> into your scenario modules.', 'webhookarm'), array('code' => array())); ?></li>
                             <li><?php esc_html_e('Keep the endpoint on HTTPS and avoid storing raw secrets in logs or history longer than necessary.', 'webhookarm'); ?></li>
                         </ol>
@@ -621,7 +602,7 @@ function bono_arm_webhook_settings_page() {
                     </div>
 
                     <div class="webhookarm-card">
-                        <div class="webhookarm-grid webhookarm-grid-two">
+                        <div class="webhookarm-grid">
                             <div class="webhookarm-code-card">
                                 <strong><?php esc_html_e('Git Updater', 'webhookarm'); ?></strong>
                                 <span>
@@ -642,27 +623,7 @@ function bono_arm_webhook_settings_page() {
                                     ?>
                                 </span>
                             </div>
-                            <div class="webhookarm-code-card">
-                                <strong><?php esc_html_e('Automated releases', 'webhookarm'); ?></strong>
-                                <span>
-                                    <?php
-                                    echo wp_kses(
-                                        __('Pushing a new version to <code>main</code> tags <code>vX.Y.Z</code>, builds a release zip, and publishes the GitHub release automatically.', 'webhookarm'),
-                                        array('code' => array())
-                                    );
-                                    ?>
-                                </span>
-                            </div>
                         </div>
-
-                        <p class="webhookarm-note">
-                            <?php
-                            echo wp_kses(
-                                __('Keep the plugin header version and <code>readme.txt</code> stable tag in sync before release. The repository automation uses those values as the source of truth.', 'webhookarm'),
-                                array('code' => array())
-                            );
-                            ?>
-                        </p>
                     </div>
                 </section>
 

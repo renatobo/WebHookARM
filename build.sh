@@ -20,10 +20,16 @@ if [[ -z "$VERSION" ]]; then
 fi
 
 OUTPUT_NAME="${PLUGIN_DIR_NAME}-${VERSION}.zip"
-OUTPUT_PATH="$PWD/$OUTPUT_NAME"
+OUTPUT_DIR="${WEBHOOKARM_BUILD_OUTPUT_DIR:-$PWD}"
+OUTPUT_PATH="$OUTPUT_DIR/$OUTPUT_NAME"
 STAGING_DIR="$(mktemp -d)"
 PACKAGE_DIR="$STAGING_DIR/$PLUGIN_DIR_NAME"
 TEMP_OUTPUT_PATH="$STAGING_DIR/$OUTPUT_NAME"
+
+if [[ ! -d "$OUTPUT_DIR" ]]; then
+  echo "Output directory does not exist: $OUTPUT_DIR"
+  exit 1
+fi
 
 cleanup() {
   rm -rf "$STAGING_DIR"
@@ -38,6 +44,8 @@ rsync -a \
   --exclude '.github/' \
   --exclude '.agents/' \
   --exclude '.claude/' \
+  --exclude '.codex/' \
+  --exclude '.serena/' \
   --exclude '.DS_Store' \
   --exclude '*.zip' \
   --exclude '.gitignore' \
@@ -46,6 +54,7 @@ rsync -a \
   --exclude '*.sh' \
   --exclude 'example.txt' \
   --exclude 'psalm.xml' \
+  --exclude 'tests/' \
   ./ "$PACKAGE_DIR/"
 
 (

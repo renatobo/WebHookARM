@@ -3,7 +3,7 @@
 [![WordPress](https://img.shields.io/badge/WordPress-Plugin-21759B?logo=wordpress&logoColor=white)](https://wordpress.org/)
 [![ARMember](https://img.shields.io/badge/ARMember-Required-ff6f00)](https://www.armemberplugin.com/)
 [![PHP](https://img.shields.io/badge/PHP-%3E%3D%208.0-777bb4?logo=php&logoColor=white)](https://www.php.net/)
-[![WP Tested](https://img.shields.io/badge/WP%20Tested-6.9.4-21759B)](https://wordpress.org/)
+[![WP Tested](https://img.shields.io/badge/WP%20Tested-7.0.2-21759B)](https://wordpress.org/)
 [![License: GPL v2 or later](https://img.shields.io/badge/License-GPL%20v2%20or%20later-blue.svg)](https://www.gnu.org/licenses/gpl-2.0.html)
 
 Send ARMember profile updates to a secure JSON webhook for Google Apps Script, Make.com, or custom integrations.
@@ -12,13 +12,15 @@ Send ARMember profile updates to a secure JSON webhook for Google Apps Script, M
 
 - Hooks into ARMember `arm_update_profile_external` profile update event
 - Sends payload as `application/json` via `POST`
-- Adds shared secret in both query string and header for flexible receiver validation
+- Signs requests with timestamped HMAC-SHA256 authentication
+- Queues delivery outside the profile request and retries transient failures
+- Redacts credential-like fields and caps serialized payloads at 256 KiB
 - Configurable from a tabbed WordPress admin screen: **Settings -> ARMember WebHook**
 - Git Updater-compatible release assets published automatically from GitHub Actions
 
 ## Requirements
 
-- WordPress 5.0+
+- WordPress 6.5+
 - PHP 8.0+
 - ARMember plugin installed and active
 - A webhook endpoint URL (Google Apps Script, Make.com, or custom API)
@@ -49,8 +51,8 @@ Use the sample script in [`assets/webhookarm_appscript.gs`](assets/webhookarm_ap
 1. Open your Google Sheet.
 2. Go to **Extensions -> Apps Script** and paste/adapt the script.
 3. In **Project Settings -> Script properties**, set:
-   - `AUTH_SECRET`
-   - `SHEET_NAME`
+   - `WA_AUTH_SECRET`
+   - `WA_SHEET_NAME`
 4. Deploy as a **Web App**:
    - **Execute as**: `Me`
    - **Who has access**: `Anyone`
@@ -60,9 +62,7 @@ Use the sample script in [`assets/webhookarm_appscript.gs`](assets/webhookarm_ap
 
 1. Create an HTTP/Webhook scenario module.
 2. Receive a `POST` with `application/json` body.
-3. Validate one of:
-   - Query param `key=<YOUR_SECRET>`
-   - Header `X-Security-Key: <YOUR_SECRET>`
+3. Validate the timestamped HMAC signature using your shared secret and the raw request body.
 4. Process/store incoming fields as needed.
 
 ## Request Format
@@ -70,11 +70,15 @@ Use the sample script in [`assets/webhookarm_appscript.gs`](assets/webhookarm_ap
 WebHookARM sends a `POST` request with:
 
 - Query params:
-  - `key=<secret>`
   - `action=profile_update`
+  - `delivery=<uuid>`
+  - `signature=<hmac>`
+  - `timestamp=<unix timestamp>`
 - Headers:
   - `Content-Type: application/json`
-  - `X-Security-Key: <secret>`
+  - `X-WebhookARM-Delivery: <uuid>`
+  - `X-WebhookARM-Signature: sha256=<hmac>`
+  - `X-WebhookARM-Timestamp: <unix timestamp>`
 - JSON body:
 
 ```json
@@ -87,12 +91,17 @@ WebHookARM sends a `POST` request with:
 
 ARMember form fields are included in the same payload when available.
 
+Credential-like keys (passwords, tokens, nonces, authentication secrets, and payment-card fields) are removed recursively before queueing. Developers can further restrict or reshape the payload with the `bono_arm_webhook_payload` filter. Queued payloads expire after one day; successful and permanently failed deliveries are removed immediately.
+
+Delivery uses WP-Cron with retry delays of 1, 5, and 15 minutes for transient failures. Sites that disable WordPress's request-driven cron must invoke `wp-cron.php` from a system scheduler.
+
 ## Security
 
 - Use a strong secret key.
 - Always validate the secret at the receiving endpoint.
 - Use HTTPS for the webhook URL.
 - Avoid logging sensitive data in production.
+- Treat the delivery UUID as an idempotency key so retried requests are not processed twice.
 
 For security reporting, see [SECURITY.md](SECURITY.md).
 
@@ -119,9 +128,9 @@ Release packaging keeps only WordPress runtime files:
 - Removes all other `.md` files
 - Removes `.sh` scripts that are not used by WordPress at runtime
 
-Latest planned release: `1.3.1`
+Latest planned release: `2.0.0`
 
-- Maintenance patch release to keep plugin version metadata, packaging, and release files synchronized across the repository.
+- Major security and reliability release introducing asynchronous retries, signed requests, bounded payload handling, and a hardened Apps Script receiver.
 
 ## Troubleshooting
 
