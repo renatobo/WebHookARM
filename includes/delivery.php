@@ -168,7 +168,7 @@ function bono_arm_webhook_process_delivery($delivery_id) {
 function bono_arm_webhook_send_request($body, $delivery_id) {
     $timestamp = (string) time();
     $secret = bono_arm_webhook_get_secret();
-    $signature = hash_hmac('sha256', $timestamp . '.' . $body, $secret);
+    $signature = bono_arm_webhook_sign($delivery_id, $timestamp, $body, $secret);
     $request_url = add_query_arg(
         array(
             'action' => 'profile_update',
@@ -193,6 +193,22 @@ function bono_arm_webhook_send_request($body, $delivery_id) {
             'body' => $body,
         )
     );
+}
+
+/**
+ * Compute the request signature over the delivery id, timestamp, and raw body.
+ *
+ * Binding the delivery id into the signed string stops an observed request from
+ * being replayed with a different identifier to defeat receiver-side idempotency.
+ *
+ * @param string $delivery_id Delivery UUID.
+ * @param string $timestamp   Unix timestamp as a string.
+ * @param string $body        Raw JSON request body.
+ * @param string $secret      Shared secret.
+ * @return string Lowercase hex HMAC-SHA256.
+ */
+function bono_arm_webhook_sign($delivery_id, $timestamp, $body, $secret) {
+    return hash_hmac('sha256', $delivery_id . '.' . $timestamp . '.' . $body, $secret);
 }
 
 /**

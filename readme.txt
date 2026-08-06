@@ -2,7 +2,7 @@
 Contributors: renatobonomini
 Tags: armember, webhook, google sheets, apps script, make, automation, profile update
 Requires at least: 6.5
-Tested up to: 7.0
+Tested up to: 7.0.2
 Requires PHP: 8.0
 Stable tag: 2.0.0
 License: GPLv2 or later
@@ -64,7 +64,7 @@ The plugin works well with:
 
 1. Create an HTTP/Webhook scenario.
 2. Accept `POST` requests with `application/json` body.
-3. Validate `X-WebhookARM-Signature` using the timestamp and raw request body.
+3. Validate `X-WebhookARM-Signature` over `<delivery id>.<timestamp>.<raw request body>`.
 4. Process/store payload values in your scenario.
 
 == Request Format ==
@@ -112,9 +112,10 @@ See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 
 = 2.0.0 =
 * Replaced synchronous webhook calls with asynchronous WP-Cron delivery and bounded retry handling.
-* Added timestamped HMAC-SHA256 request authentication without transmitting the shared secret.
+* Added HMAC-SHA256 request authentication over the delivery id, timestamp, and raw body without transmitting the shared secret.
 * Added credential-field redaction, payload size limits, safe HTTP requests, HTTPS enforcement, and delivery identifiers.
 * Hardened the bundled Apps Script receiver with replay protection, idempotency, concurrency locking, formula-injection protection, and privacy-safe diagnostics.
+* Added an "Upgrade to 2.0" settings tab documenting the migration, plus a dismissible admin warning for sites upgrading from a version whose receiver configuration is no longer compatible.
 * Added delivery regression tests, stronger CI packaging checks, ARMember dependency metadata, and WordPress 7.0 compatibility metadata.
 
 = 1.3.1 =
@@ -142,7 +143,7 @@ See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 == Upgrade Notice ==
 
 = 2.0.0 =
-Major delivery and authentication upgrade. Update custom receivers to validate the timestamped HMAC signature; the shared secret is no longer included in request URLs.
+Major delivery and authentication upgrade. Receivers built for 1.x must be updated before deliveries will be accepted: validate the HMAC signature over the delivery id, timestamp, and raw body, because the shared secret is no longer included in request URLs. Sites upgrading from an earlier version get an admin warning linking to the step-by-step guide on the plugin's "Upgrade to 2.0" tab.
 
 = 1.3.1 =
 Maintenance patch release with synchronized version metadata and packaging.

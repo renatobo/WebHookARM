@@ -62,7 +62,7 @@ Use the sample script in [`assets/webhookarm_appscript.gs`](assets/webhookarm_ap
 
 1. Create an HTTP/Webhook scenario module.
 2. Receive a `POST` with `application/json` body.
-3. Validate the timestamped HMAC signature using your shared secret and the raw request body.
+3. Validate the HMAC signature using your shared secret over `<delivery id>.<timestamp>.<raw request body>`.
 4. Process/store incoming fields as needed.
 
 ## Request Format

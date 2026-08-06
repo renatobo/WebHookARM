@@ -60,13 +60,21 @@ function parseAndAuthenticateRequest(e) {
     throw new Error('expired_request');
   }
 
+  // WordPress always sends a lowercase UUID; normalize so the signed string matches.
+  const deliveryId = String(e.parameter.delivery || '').toLowerCase();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(deliveryId)) {
+    throw new Error('invalid_delivery');
+  }
+
   const secret = PropertiesService.getScriptProperties().getProperty('WA_AUTH_SECRET');
   if (!secret || secret.length < 16) {
     throw new Error('receiver_not_configured');
   }
 
+  // The delivery id is part of the signed string, so it cannot be swapped to
+  // bypass the idempotency cache in doPost().
   const expectedSignature = toHex(
-    Utilities.computeHmacSha256Signature(String(timestamp) + '.' + rawBody, secret)
+    Utilities.computeHmacSha256Signature(deliveryId + '.' + String(timestamp) + '.' + rawBody, secret)
   );
   const receivedSignature = String(e.parameter.signature || '').toLowerCase();
 
@@ -88,11 +96,6 @@ function parseAndAuthenticateRequest(e) {
     typeof body.user_email !== 'string'
   ) {
     throw new Error('invalid_payload');
-  }
-
-  const deliveryId = String(e.parameter.delivery || '');
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(deliveryId)) {
-    throw new Error('invalid_delivery');
   }
 
   return { body: body, deliveryId: deliveryId };
