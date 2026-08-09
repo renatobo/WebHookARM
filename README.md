@@ -128,9 +128,9 @@ Release packaging keeps only WordPress runtime files:
 - Removes all other `.md` files
 - Removes `.sh` scripts that are not used by WordPress at runtime
 
-Latest planned release: `2.0.0`
+Latest planned release: `2.0.1`
 
-- Major security and reliability release introducing asynchronous retries, signed requests, bounded payload handling, and a hardened Apps Script receiver.
+- Maintenance release fixing release automation, uninstall cleanup under nested include scopes, and static analysis errors. Webhook delivery is unchanged from 2.0.0.
 
 ## Troubleshooting
 

@@ -4,7 +4,7 @@ Tags: armember, webhook, google sheets, apps script, make, automation, profile u
 Requires at least: 7.0
 Tested up to: 7.0.2
 Requires PHP: 8.0
-Stable tag: 2.0.0
+Stable tag: 2.0.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -110,6 +110,11 @@ See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 
 == Changelog ==
 
+= 2.0.1 =
+* Fixed release automation so the packaged zip is published automatically when a version tag is created.
+* Read the database handle from the globals array during uninstall so cleanup runs under any include scope.
+* Cleared the static analysis errors reported against the 2.0.0 tree; no change to webhook delivery behaviour.
+
 = 2.0.0 =
 * Replaced synchronous webhook calls with asynchronous WP-Cron delivery and bounded retry handling.
 * Added HMAC-SHA256 request authentication over the delivery id, timestamp, and raw body without transmitting the shared secret.
@@ -141,6 +146,9 @@ See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 * Initial public release.
 
 == Upgrade Notice ==
+
+= 2.0.1 =
+Maintenance release. Safe to apply directly; receivers already configured for 2.0.0 need no changes.
 
 = 2.0.0 =
 Major delivery and authentication upgrade. Receivers built for 1.x must be updated before deliveries will be accepted: validate the HMAC signature over the delivery id, timestamp, and raw body, because the shared secret is no longer included in request URLs. Sites upgrading from an earlier version get an admin warning linking to the step-by-step guide on the plugin's "Upgrade to 2.0" tab.
