@@ -5,6 +5,10 @@
  * @package WebHookARM
  */
 
+// Psalm analyses this file inline from webhookarm.php, where the same guard has
+// already run, so it reads the check as redundant. It is not: the guard still
+// protects the file when it is requested directly.
+/** @psalm-suppress ParadoxicalCondition */
 if (!defined('ABSPATH')) {
     exit;
 }
@@ -142,7 +146,7 @@ function bono_arm_webhook_process_delivery($delivery_id) {
     }
 
     $delays = array(60, 300, 900);
-    $delay = $delays[min($delivery['attempt'] - 1, count($delays) - 1)];
+    $delay = $delays[max(0, min($delivery['attempt'] - 1, count($delays) - 1))];
     $scheduled = wp_schedule_single_event(
         time() + $delay,
         BONO_ARM_WEBHOOK_DELIVERY_HOOK,

@@ -36,7 +36,9 @@ wp_unschedule_hook( 'bono_arm_webhook_process_delivery' );
  * a persistent object cache the entries live outside wp_options and expire on
  * their own within a day.
  */
-global $wpdb;
+// Read from $GLOBALS rather than `global $wpdb;`, which PHP rejects at the top
+// level of a file that may be included from a function scope.
+$wpdb = $GLOBALS['wpdb'];
 
 $delivery_like = $wpdb->esc_like( '_transient_bono_arm_webhook_delivery_' ) . '%';
 $timeout_like  = $wpdb->esc_like( '_transient_timeout_bono_arm_webhook_delivery_' ) . '%';
