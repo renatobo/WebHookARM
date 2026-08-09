@@ -1,7 +1,7 @@
 # WebHookARM
 
 WordPress plugin. Sends ARMember profile updates to a signed JSON webhook.
-Requires PHP 8.0+, WordPress 6.5+. No Composer, no build step for the PHP itself.
+Requires PHP 8.0+, WordPress 7.0+. No Composer, no build step for the PHP itself.
 
 ## Verify changes
 

@@ -20,7 +20,7 @@ Send ARMember profile updates to a secure JSON webhook for Google Apps Script, M
 
 ## Requirements
 
-- WordPress 6.5+
+- WordPress 7.0+
 - PHP 8.0+
 - ARMember plugin installed and active
 - A webhook endpoint URL (Google Apps Script, Make.com, or custom API)

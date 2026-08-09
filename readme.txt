@@ -1,7 +1,7 @@
 === WebHookARM ===
 Contributors: renatobonomini
 Tags: armember, webhook, google sheets, apps script, make, automation, profile update
-Requires at least: 6.5
+Requires at least: 7.0
 Tested up to: 7.0.2
 Requires PHP: 8.0
 Stable tag: 2.0.0

@@ -4,7 +4,7 @@
  * Plugin URI:        https://github.com/renatobo/WebHookARM
  * Description:       Send ARMember profile updates to a secure JSON webhook for Google Apps Script, Make.com, or custom integrations.
  * Version:           2.0.0
- * Requires at least: 6.5
+ * Requires at least: 7.0
  * Requires PHP:      8.0
  * Requires Plugins:  armember-membership
  * Tested up to:      7.0.2
