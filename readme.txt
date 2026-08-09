@@ -1,10 +1,10 @@
 === WebHookARM ===
 Contributors: renatobonomini
 Tags: armember, webhook, google sheets, apps script, make, automation, profile update
-Requires at least: 5.0
-Tested up to: 6.9.4
+Requires at least: 7.0
+Tested up to: 7.0.2
 Requires PHP: 8.0
-Stable tag: 1.3.1
+Stable tag: 2.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -23,7 +23,8 @@ Key capabilities:
 
 * ARMember profile update trigger
 * JSON webhook delivery (`application/json`)
-* Shared secret passed as both query parameter and header
+* Timestamped HMAC-SHA256 request signatures
+* Asynchronous delivery with bounded retries
 * Tabbed admin settings page under **Settings > ARMember WebHook**
 * Git Updater-compatible release assets published automatically from GitHub Actions
 
@@ -52,8 +53,8 @@ The plugin works well with:
 2. Go to **Extensions > Apps Script**.
 3. Use the sample file `assets/webhookarm_appscript.gs` as your base.
 4. In **Project Settings > Script properties**, add:
-   * `AUTH_SECRET`
-   * `SHEET_NAME`
+   * `WA_AUTH_SECRET`
+   * `WA_SHEET_NAME`
 5. Deploy as a **Web App**:
    * **Execute as**: Me
    * **Who has access**: Anyone
@@ -63,9 +64,7 @@ The plugin works well with:
 
 1. Create an HTTP/Webhook scenario.
 2. Accept `POST` requests with `application/json` body.
-3. Validate either:
-   * Query parameter: `key=<YOUR_SECRET>`
-   * Header: `X-Security-Key: <YOUR_SECRET>`
+3. Validate `X-WebhookARM-Signature` over `<delivery id>.<timestamp>.<raw request body>`.
 4. Process/store payload values in your scenario.
 
 == Request Format ==
@@ -74,12 +73,18 @@ WebHookARM sends:
 
 * Method: `POST`
 * Query params:
-  * `key=<secret>`
   * `action=profile_update`
+  * `delivery=<uuid>`
+  * `signature=<hmac>` (for receivers such as Apps Script that cannot read headers)
+  * `timestamp=<unix timestamp>`
 * Headers:
   * `Content-Type: application/json`
-  * `X-Security-Key: <secret>`
+  * `X-WebhookARM-Delivery: <uuid>`
+  * `X-WebhookARM-Signature: sha256=<hmac>`
+  * `X-WebhookARM-Timestamp: <unix timestamp>`
 * Body: JSON with ARMember form fields plus WordPress user data (`user_id`, `user_login`, `user_email`)
+
+Credential-like keys are removed recursively and payloads are capped at 256 KiB before being queued. Transient failures are retried after 1, 5, and 15 minutes. Queued data expires after one day. Sites with request-driven WP-Cron disabled must invoke `wp-cron.php` from a system scheduler.
 
 == Frequently Asked Questions ==
 
@@ -91,9 +96,9 @@ No. WebHookARM is triggered by ARMember's `arm_update_profile_external` event.
 
 Yes. Any endpoint that accepts authenticated JSON `POST` requests can be used.
 
-= Why send the secret in query string and header? =
+= Is the secret included in the URL? =
 
-To support different receiver implementations. Your endpoint can validate one or both.
+No. URLs contain only a short-lived signature, timestamp, action, and delivery identifier. The shared secret is used to calculate the signature and is never transmitted.
 
 = How do I get plugin updates from GitHub? =
 
@@ -104,6 +109,14 @@ Install the Git Updater plugin: https://github.com/afragen/git-updater
 See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 
 == Changelog ==
+
+= 2.0.0 =
+* Replaced synchronous webhook calls with asynchronous WP-Cron delivery and bounded retry handling.
+* Added HMAC-SHA256 request authentication over the delivery id, timestamp, and raw body without transmitting the shared secret.
+* Added credential-field redaction, payload size limits, safe HTTP requests, HTTPS enforcement, and delivery identifiers.
+* Hardened the bundled Apps Script receiver with replay protection, idempotency, concurrency locking, formula-injection protection, and privacy-safe diagnostics.
+* Added an "Upgrade to 2.0" settings tab documenting the migration, plus a dismissible admin warning for sites upgrading from a version whose receiver configuration is no longer compatible.
+* Added delivery regression tests, stronger CI packaging checks, ARMember dependency metadata, and WordPress 7.0 compatibility metadata.
 
 = 1.3.1 =
 * Maintenance patch release to keep plugin version metadata, packaging, and release files synchronized across the repository.
@@ -128,6 +141,9 @@ See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 * Initial public release.
 
 == Upgrade Notice ==
+
+= 2.0.0 =
+Major delivery and authentication upgrade. Receivers built for 1.x must be updated before deliveries will be accepted: validate the HMAC signature over the delivery id, timestamp, and raw body, because the shared secret is no longer included in request URLs. Sites upgrading from an earlier version get an admin warning linking to the step-by-step guide on the plugin's "Upgrade to 2.0" tab.
 
 = 1.3.1 =
 Maintenance patch release with synchronized version metadata and packaging.
