@@ -15,6 +15,8 @@
     <issueHandlers>
         <UndefinedConstant errorLevel="suppress" />
         <UndefinedFunction errorLevel="suppress" />
+        <!-- WordPress classes such as WP_Error are only named in docblocks; no stubs are installed. -->
+        <UndefinedDocblockClass errorLevel="suppress" />
         <MixedArgument errorLevel="suppress" />
         <MixedAssignment errorLevel="suppress" />
     </issueHandlers>

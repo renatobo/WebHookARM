@@ -17,6 +17,9 @@ jobs:
     permissions:
       contents: write
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    outputs:
+      version: ${{ steps.extract_version.outputs.version }}
+      tagged: ${{ steps.check_tag.outputs.tag_exists == 'false' }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -54,3 +57,14 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag "v$VERSION"
           git push origin "v$VERSION"
+
+  # The tag above is pushed with GITHUB_TOKEN, which by design does not trigger
+  # the push event in Release Plugin Zip. Call that workflow directly instead.
+  release:
+    needs: update-readme-stable-tag
+    if: needs.update-readme-stable-tag.outputs.tagged == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/package-plugin.yml
+    with:
+      tag: v${{ needs.update-readme-stable-tag.outputs.version }}

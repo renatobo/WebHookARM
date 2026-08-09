@@ -4,6 +4,14 @@ on:
   push:
     tags:
       - 'v*'
+  # Called by Tag Stable Version. A tag pushed with GITHUB_TOKEN cannot trigger
+  # the push event above, so the tagging workflow invokes this one directly.
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Tag to build and publish. Defaults to the triggering ref.'
+        required: false
+        type: string
 
 jobs:
   zip:
@@ -15,6 +23,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref_name }}
 
       - name: Build plugin package
         id: build
@@ -30,6 +39,7 @@ jobs:
       - name: Create GitHub release and upload asset
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228
         with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
           files: ${{ steps.build.outputs.zip_path }}
           generate_release_notes: true
           fail_on_unmatched_files: true
