@@ -8,7 +8,11 @@ Requires PHP 8.0+, WordPress 7.0+. No Composer, no build step for the PHP itself
 ```bash
 find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l
 php tests/delivery-test.php   # no WordPress needed; stubs the WP functions it uses
-./build.sh                    # writes WebHookARM-<version>.zip to $PWD
+./build.sh                    # writes dist/WebHookARM-<version>.zip
+
+# Psalm gates merges but the project has no Composer manifest. Install it
+# outside the repo and point it at the config:
+psalm -c psalm.xml --root=. --no-cache
 ```
 
 CI additionally enforces two exact-string metadata matches, and fails the build on either:
@@ -44,13 +48,21 @@ at 60/300/900 seconds, giving up after 4 attempts or a non-retryable 4xx.
   WordPress call at file load time breaks the test run until a stub is added.
 - `build.sh` derives the zip name from `basename $PWD`, so the checkout directory must
   stay `WebHookARM`. New top-level directories need an rsync `--exclude` or they ship.
-- The psalm PostToolUse hook in `.claude/settings.json` is wrapped in `2>/dev/null || true`
-  and silently no-ops when psalm is not installed locally. Real analysis happens in CI only.
+- Psalm runs in CI only. `.claude/settings.json` is gitignored, so any local hook is
+  per-machine; never assume a clean local run means a clean CI run.
 
 ## Release
 
-Push to `main`, then `update-stable-tag.yml` tags `v<Stable tag>` and
-`package-plugin.yml` builds and uploads the release asset that Git Updater consumes.
+Push to `main`. `update-stable-tag.yml` tags `v<Stable tag>`, then calls
+`package-plugin.yml` via `workflow_call` to build and upload the asset Git Updater
+consumes.
+
+That call is deliberate, not a convenience. A tag pushed with the default
+`GITHUB_TOKEN` cannot trigger the `push: tags` event, so `package-plugin.yml` never
+fires on its own from an automated tag. v2.0.0 tagged with no release because of
+this. If a release goes missing, the fallback is deleting the remote tag and
+re-pushing it from a local clone, which fires the `push` trigger normally.
+
 Bump `Version` in `webhookarm.php`, `Stable tag` plus the changelog and upgrade notice
 in `readme.txt`, and note anything user-visible in `README.md`.
 
