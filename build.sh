@@ -20,7 +20,8 @@ if [[ -z "$VERSION" ]]; then
 fi
 
 OUTPUT_NAME="${PLUGIN_DIR_NAME}-${VERSION}.zip"
-OUTPUT_DIR="${WEBHOOKARM_BUILD_OUTPUT_DIR:-$PWD}"
+OUTPUT_DIR="${WEBHOOKARM_BUILD_OUTPUT_DIR:-$PWD/dist}"
+mkdir -p "$OUTPUT_DIR"
 OUTPUT_PATH="$OUTPUT_DIR/$OUTPUT_NAME"
 STAGING_DIR="$(mktemp -d)"
 PACKAGE_DIR="$STAGING_DIR/$PLUGIN_DIR_NAME"
@@ -47,6 +48,8 @@ rsync -a \
   --exclude '.codex/' \
   --exclude '.serena/' \
   --exclude '.DS_Store' \
+  --exclude '/dist' \
+  --exclude '/dist/**' \
   --exclude '*.zip' \
   --exclude '.gitignore' \
   --include '/README.md' \

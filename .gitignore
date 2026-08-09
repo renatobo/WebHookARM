@@ -7,3 +7,6 @@ example.txt
 .claude/settings.local.json
 .claude/agents/
 .claude/skills/
+
+# Release archives are built locally into dist/ and attached to GitHub releases.
+/dist/
