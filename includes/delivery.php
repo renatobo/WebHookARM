@@ -64,6 +64,9 @@ function bono_arm_webhook_queue_profile_update($user_id, $form_data) {
         return;
     }
 
+    // Also scheduled from wp-admin; this covers sites whose admin is rarely opened.
+    bono_arm_webhook_maybe_schedule_cleanup();
+
     /**
      * Filter whether to spawn WP-Cron immediately after queueing a delivery.
      *
@@ -590,7 +593,7 @@ function bono_arm_webhook_cleanup_expired_deliveries() {
 
     $delivery_names = $wpdb->get_col(
         $wpdb->prepare(
-            "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s LIMIT 500",
+            "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s ORDER BY option_id LIMIT 500",
             $wpdb->esc_like(BONO_ARM_WEBHOOK_DELIVERY_PREFIX) . '%'
         )
     );
@@ -609,7 +612,7 @@ function bono_arm_webhook_cleanup_expired_deliveries() {
 
     $lock_names = $wpdb->get_col(
         $wpdb->prepare(
-            "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s LIMIT 500",
+            "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s ORDER BY option_id LIMIT 500",
             $wpdb->esc_like(BONO_ARM_WEBHOOK_LOCK_PREFIX) . '%'
         )
     );

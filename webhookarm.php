@@ -95,7 +95,8 @@ function bono_arm_webhook_bootstrap() {
 /**
  * Schedule the daily sweep of expired deliveries if it is missing.
  *
- * Runs on admin_init because updates do not fire activation hooks.
+ * Runs on admin_init and whenever a delivery is queued, because updates do not
+ * fire activation hooks and some sites rarely open wp-admin.
  */
 function bono_arm_webhook_maybe_schedule_cleanup() {
     if (!wp_next_scheduled(BONO_ARM_WEBHOOK_CLEANUP_HOOK)) {
