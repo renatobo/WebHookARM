@@ -290,7 +290,7 @@ if (!defined('ABSPATH')) {
                                     );
                                     ?>
                                 </strong>
-                                <?php esc_html_e('Fix the receiver, then resend them. Each is sent again with its original delivery id, so a receiver that did store it can skip the duplicate.', 'webhookarm'); ?>
+                                <?php esc_html_e('Fix the receiver, then resend them, up to 50 per click. Each is sent again with its original delivery id and its original payload: a receiver that deduplicates by id can skip ones it already stored (the bundled Apps Script only remembers ids for 6 hours), and an older resend can overwrite newer profile data at a receiver that updates records in place.', 'webhookarm'); ?>
                             </p>
                             <p>
                                 <button type="submit" form="webhookarm-resend-form" class="button button-primary">

@@ -51,6 +51,7 @@ if (version_compare(PHP_VERSION, '8.0.0', '<')) {
 
 register_deactivation_hook(__FILE__, 'bono_arm_webhook_deactivate');
 add_action('plugins_loaded', 'bono_arm_webhook_bootstrap');
+add_action('delete_user', 'bono_arm_webhook_forget_user');
 add_action('admin_menu', 'bono_arm_webhook_add_settings_page');
 add_action('admin_init', 'bono_arm_webhook_handle_upgrade_notice_dismissal', 5);
 add_action('admin_init', 'bono_arm_webhook_maybe_flag_receiver_upgrade');
@@ -111,9 +112,28 @@ function bono_arm_webhook_maybe_schedule_cleanup() {
  * Stop queued deliveries and remove the profile data they hold.
  *
  * Without this, queued events fire with no handler once the plugin is inactive
- * and their stored payloads linger. Settings are kept for reactivation.
+ * and their stored payloads, including kept failures, linger. Settings are
+ * kept for reactivation. A network deactivation cleans every site.
+ *
+ * @param bool $network_wide Whether the plugin is being deactivated network-wide.
  */
-function bono_arm_webhook_deactivate() {
+function bono_arm_webhook_deactivate($network_wide = false) {
+    if (!$network_wide || !is_multisite()) {
+        bono_arm_webhook_deactivate_site();
+        return;
+    }
+
+    foreach (get_sites(array('fields' => 'ids', 'number' => 0)) as $site_id) {
+        switch_to_blog((int) $site_id);
+        bono_arm_webhook_deactivate_site();
+        restore_current_blog();
+    }
+}
+
+/**
+ * Unschedule events and purge queued and kept deliveries on the current site.
+ */
+function bono_arm_webhook_deactivate_site() {
     wp_unschedule_hook(BONO_ARM_WEBHOOK_DELIVERY_HOOK);
     wp_unschedule_hook(BONO_ARM_WEBHOOK_CLEANUP_HOOK);
     bono_arm_webhook_purge_queue();

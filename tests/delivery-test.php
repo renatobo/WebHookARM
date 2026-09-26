@@ -498,6 +498,32 @@ assert_same(array('attempt' => 0, 'body' => '{"a":1}'), array_intersect_key((arr
 assert_same(array(TEST_DELIVERY_ID), first_recorded('test_cron')[2], 'Resend did not schedule the original delivery id.');
 assert_same(false, get_option(BONO_ARM_WEBHOOK_FAILED_PREFIX . TEST_DELIVERY_ID), 'Resend left the failed row behind.');
 
+// Resend works in batches, oldest first.
+$GLOBALS['test_options'] = array(
+    BONO_ARM_WEBHOOK_FAILED_PREFIX . $expired_id => array('body' => '{}', 'status' => 403, 'attempt' => 1, 'failed_at' => time()),
+    BONO_ARM_WEBHOOK_FAILED_PREFIX . $fresh_id => array('body' => '{}', 'status' => 403, 'attempt' => 1, 'failed_at' => time()),
+);
+assert_same(1, bono_arm_webhook_resend_failed_deliveries(1), 'Resend ignored its batch limit.');
+assert_same(array($fresh_id), bono_arm_webhook_get_failed_delivery_ids(), 'Resend did not take the oldest failure first.');
+
+// A failure that is already kept is overwritten, not left stale.
+run_attempt(http_response(403));
+$GLOBALS['test_options'][BONO_ARM_WEBHOOK_FAILED_PREFIX . TEST_DELIVERY_ID]['failed_at'] = 1;
+$GLOBALS['test_options'][BONO_ARM_WEBHOOK_DELIVERY_PREFIX . TEST_DELIVERY_ID] = array('attempt' => 0, 'body' => '{"a":2}', 'created_at' => time());
+$GLOBALS['test_responses'] = array(http_response(403));
+bono_arm_webhook_process_delivery(TEST_DELIVERY_ID);
+assert_same('{"a":2}', get_option(BONO_ARM_WEBHOOK_FAILED_PREFIX . TEST_DELIVERY_ID)['body'], 'A repeated failure did not overwrite the kept copy.');
+
+// Deleting a user removes the queued and kept payloads that carry their data.
+$GLOBALS['test_options'] = array(
+    BONO_ARM_WEBHOOK_FAILED_PREFIX . $expired_id => array('body' => '{"user_id":7}', 'failed_at' => time()),
+    BONO_ARM_WEBHOOK_DELIVERY_PREFIX . $fresh_id => array('attempt' => 0, 'body' => '{"user_id":7}', 'created_at' => time()),
+    BONO_ARM_WEBHOOK_FAILED_PREFIX . $fresh_id => array('body' => '{"user_id":8}', 'failed_at' => time()),
+    BONO_ARM_WEBHOOK_OPTION_DELIVERY_STATS => array('since' => time()),
+);
+bono_arm_webhook_forget_user(7);
+assert_same(array(BONO_ARM_WEBHOOK_FAILED_PREFIX . $fresh_id, BONO_ARM_WEBHOOK_OPTION_DELIVERY_STATS), array_keys($GLOBALS['test_options']), 'Deleting a user did not remove exactly their queued and kept payloads.');
+
 $GLOBALS['test_filters']['bono_arm_webhook_keep_failed_deliveries'] = false;
 run_attempt(http_response(403));
 assert_same(array(), bono_arm_webhook_get_failed_delivery_ids(), 'A failure was kept although the filter disabled it.');
@@ -557,9 +583,14 @@ assert_same(false, get_option(BONO_ARM_WEBHOOK_OPTION_UPGRADE_NOTICE), 'A fresh 
 
 // Field allowlist.
 $GLOBALS['test_settings_errors'] = array();
-assert_same("first_name\nlast_name\naddress[city]", bono_arm_webhook_sanitize_field_allowlist(" first_name, last_name\r\nbad key!\n\nfirst_name\naddress[city]"), 'The allowlist was not normalized to unique valid keys.');
+assert_same("first_name\nlast_name\nphone.home", bono_arm_webhook_sanitize_field_allowlist(" first_name, last_name\r\nbad key!\n\nfirst_name\naddress[city]\nphone.home"), 'The allowlist was not normalized to unique valid keys.');
 assert_same(array('bono_arm_webhook_invalid_field'), $GLOBALS['test_settings_errors'], 'An invalid allowlist key did not report a settings error.');
 assert_same('', bono_arm_webhook_sanitize_field_allowlist(null), 'A non-string allowlist was not cleared.');
+$GLOBALS['test_options'] = array(BONO_ARM_WEBHOOK_OPTION_FIELD_ALLOWLIST => "first_name");
+$GLOBALS['test_settings_errors'] = array();
+assert_same('first_name', bono_arm_webhook_sanitize_field_allowlist("first name, phone number"), 'An allowlist with no valid keys replaced the saved list with "send everything".');
+assert_same(array('bono_arm_webhook_invalid_allowlist'), $GLOBALS['test_settings_errors'], 'An allowlist with no valid keys did not report an error.');
+assert_same('', bono_arm_webhook_sanitize_field_allowlist(''), 'An empty allowlist field did not clear the list.');
 
 $GLOBALS['test_options'] = array(BONO_ARM_WEBHOOK_OPTION_FIELD_ALLOWLIST => "first_name\nnested");
 $payload = bono_arm_webhook_build_payload(42, array('first_name' => 'Jane', 'last_name' => 'Doe', 'user_pass' => 'x', 'nested' => array('city' => 'LA', 'api_key' => 'k')));

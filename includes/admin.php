@@ -230,7 +230,9 @@ function bono_arm_webhook_sanitize_url($value) {
  * Normalize the field allowlist to unique keys, one per line.
  *
  * Accepts keys separated by new lines or commas. Keys may contain letters,
- * digits, and _ - . [ ]; anything else is dropped.
+ * digits, and _ - . ; anything else is dropped. If keys were entered but none
+ * is valid, the previous list is kept: an empty list means "send everything",
+ * which is the opposite of what the admin asked for.
  *
  * @param mixed $value Submitted option value.
  * @return string
@@ -245,15 +247,27 @@ function bono_arm_webhook_sanitize_field_allowlist($value) {
     $valid = array_filter(
         $keys,
         static function ($key) {
-            return 1 === preg_match('/^[A-Za-z0-9_.\[\]-]+$/', $key);
+            return 1 === preg_match('/^[A-Za-z0-9_.-]+$/', $key);
         }
     );
 
-    if (count($valid) !== count(array_filter($keys, 'strlen'))) {
+    $entered = count(array_filter($keys, 'strlen'));
+
+    if ($entered > 0 && array() === $valid) {
+        add_settings_error(
+            'bono_arm_webhook',
+            'bono_arm_webhook_invalid_allowlist',
+            __('None of the field names are valid, so the previous field list was kept. Use letters, digits, and _ - . only.', 'webhookarm')
+        );
+
+        return implode("\n", bono_arm_webhook_get_field_allowlist());
+    }
+
+    if (count($valid) !== $entered) {
         add_settings_error(
             'bono_arm_webhook',
             'bono_arm_webhook_invalid_field',
-            __('Some field names were ignored because they contain characters other than letters, digits, and _ - . [ ]', 'webhookarm'),
+            __('Some field names were ignored because they contain characters other than letters, digits, and _ - .', 'webhookarm'),
             'warning'
         );
     }
@@ -385,7 +399,10 @@ function bono_arm_webhook_handle_resend_failed() {
 
     check_admin_referer('bono_arm_webhook_resend_failed');
 
-    $queued = bono_arm_webhook_resend_failed_deliveries();
+    // Without a destination every resend would fail again and burn its retries.
+    $queued = '' === bono_arm_webhook_get_webhook_url() || '' === bono_arm_webhook_get_secret()
+        ? -1
+        : bono_arm_webhook_resend_failed_deliveries();
 
     wp_safe_redirect(
         add_query_arg(
@@ -410,7 +427,17 @@ function bono_arm_webhook_render_resend_notice() {
     }
 
     // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-    $queued = absint(wp_unslash((string) $_GET['webhookarm_resent']));
+    $queued = (int) sanitize_text_field(wp_unslash((string) $_GET['webhookarm_resent']));
+
+    if ($queued < 0) {
+        printf(
+            '<div class="notice notice-warning inline"><p>%s</p></div>',
+            esc_html__('Save a webhook URL and secret key before resending failed deliveries.', 'webhookarm')
+        );
+        return;
+    }
+
+    $remaining = count(bono_arm_webhook_get_failed_delivery_ids());
 
     printf(
         '<div class="notice notice-success inline"><p>%s</p></div>',
@@ -419,7 +446,11 @@ function bono_arm_webhook_render_resend_notice() {
                 /* translators: %d: Number of deliveries queued again. */
                 _n('%d failed delivery was queued again. It will be sent on the next WP-Cron run.', '%d failed deliveries were queued again. They will be sent on the next WP-Cron run.', $queued, 'webhookarm'),
                 $queued
-            )
+            ) . ($remaining > 0 ? ' ' . sprintf(
+                /* translators: %d: Number of failed deliveries still kept. */
+                _n('%d more is still kept; resend again to queue the next batch.', '%d more are still kept; resend again to queue the next batch.', $remaining, 'webhookarm'),
+                $remaining
+            ) : '')
         )
     );
 }

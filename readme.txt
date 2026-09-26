@@ -106,7 +106,7 @@ No. URLs contain only a short-lived signature, timestamp, action, and delivery i
 
 = What happens to deliveries that fail? =
 
-Temporary failures are retried after 1, 5, and 15 minutes. Deliveries that fail permanently, for example because the receiver rejects the signature, are kept for 7 days. Once the receiver is fixed, click **Resend failed deliveries** on the Delivery status card. They are sent again under their original delivery ids, so a receiver that deduplicates by id skips any it already stored. Deactivating or deleting the plugin removes them.
+Temporary failures are retried after 1, 5, and 15 minutes. Deliveries that fail permanently, for example because the receiver rejects the signature, are kept for 7 days, including their profile data. Once the receiver is fixed, click **Resend failed deliveries** on the Delivery status card; up to 50 are queued per click. They are sent again under their original delivery ids with their original payloads. A receiver that deduplicates by id skips any it already stored (the bundled Apps Script only remembers ids for 6 hours), and a resend can overwrite newer data at a receiver that updates records in place. Deactivating or deleting the plugin, or deleting the user, removes them.
 
 = Can I send only some fields? =
 
@@ -127,7 +127,7 @@ See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 == Changelog ==
 
 = 2.2.0 =
-* Permanently failed deliveries are now kept for 7 days instead of discarded. The Delivery status card shows how many are kept, and "Resend failed deliveries" sends them again under their original delivery ids once the receiver is fixed. Deactivating or deleting the plugin removes them.
+* Permanently failed deliveries are now kept for 7 days instead of discarded. The Delivery status card shows how many are kept, and "Resend failed deliveries" sends them again, 50 per click, under their original delivery ids once the receiver is fixed. Deactivating the plugin (on every site for a network deactivation), deleting it, or deleting the user removes them.
 * New optional "Send only these fields" setting: list ARMember field keys to limit what is sent. `user_id`, `user_login`, and `user_email` are always included, and credential-like fields are still removed.
 * The settings page warns when ARMember premium is not active. Only premium sends profile updates; ARMember Lite alone never does.
 * The daily cleanup is also scheduled when a delivery is queued, so sites that rarely open wp-admin still clean up.

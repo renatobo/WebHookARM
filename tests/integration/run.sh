@@ -139,12 +139,13 @@ settings_page() {
     curl -s -b "$JAR" "$SITE/wp-admin/options-general.php?page=webhookarm"
 }
 
-# The settings form's nonce comes first on the page, the test form's second.
+# Nonces in page order: settings form, test delivery form, resend form.
 page_nonce() {
     settings_page | grep -o 'name="_wpnonce" value="[0-9a-f]*"' | sed -n "${1}p" | sed 's/.*value="\([0-9a-f]*\)"/\1/'
 }
 
-# Mirrors a browser submit: every registered field is posted.
+# Mirrors a browser submit of the enable, URL, and secret fields; pass extra
+# fields (such as the allowlist) as additional curl arguments.
 save_settings() {
     local url="$1" secret="$2"
     shift 2
@@ -300,7 +301,7 @@ assert_eq "$(option bono_arm_webhook_field_allowlist)" $'first_name\nnested' "th
 queue_update
 run_cron
 assert_eq "$(jq -r '.body | fromjson | keys_unsorted | join(",")' <<<"$(last_request receiver)")" "first_name,nested,user_id,user_login,user_email" "the allowlist sends only the listed fields plus identity fields"
-save_settings "http://127.0.0.1:8081/hook" "" >/dev/null
+save_settings "http://127.0.0.1:8081/hook" "" --data-urlencode "bono_arm_webhook_field_allowlist=" >/dev/null
 assert_eq "$(option bono_arm_webhook_field_allowlist)" "" "an empty allowlist field clears the setting"
 
 # --- The cleanup is scheduled from the queue path too ----------------------
@@ -343,6 +344,20 @@ assert_eq "$(count_queued failed)" "0" "resent failures are no longer kept"
 run_cron
 assert_eq "$(count_requests receiver)" "2" "both resent deliveries reach the fixed receiver"
 assert_eq "$(last_outcome)" "succeeded 200" "the resent deliveries succeed"
+
+# --- Kept failures are erased with their user; resend needs a destination ---
+
+member_id="$($WP user create member member@example.com --porcelain)"
+set_url "http://127.0.0.1:8081/reject"
+MEMBER_ID="$member_id" $WP eval 'do_action("arm_update_profile_external", (int) getenv("MEMBER_ID"), array("first_name" => "Member"));'
+run_cron
+assert_eq "$(count_queued failed)" "1" "a member's failed delivery is kept"
+$WP user delete "$member_id" --yes >/dev/null
+assert_eq "$(count_queued failed)" "0" "deleting the user erases their kept payload"
+
+set_url ""
+assert_contains "$(resend_failed)" "webhookarm_resent=-1" "resend is refused while no webhook URL is saved"
+set_url "http://127.0.0.1:8081/hook"
 
 set_url "http://script.google.com:8081/macros/s/retry/exec"
 queue_update

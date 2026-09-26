@@ -201,7 +201,7 @@ Previous release: `2.1.0`
 - 401/403 at endpoint: verify secret key and validation logic.
 - Invalid payload format: ensure receiver accepts `application/json`.
 - Check **Delivery status** on the Webhook tab, or use **Send test delivery**.
-- After fixing a receiver, use **Resend failed deliveries** on the same card. Failed deliveries are kept for 7 days and resent under their original delivery ids, so a receiver that deduplicates by id skips any it already stored.
+- After fixing a receiver, use **Resend failed deliveries** on the same card (up to 50 per click). Failed deliveries are kept for 7 days, removed on deactivation, uninstall, or when their user is deleted, and resent under their original delivery ids with their original payloads. A receiver that deduplicates by id skips any it already stored; the bundled Apps Script only remembers ids for 6 hours. A resend can overwrite newer data at a receiver that updates records in place, and it ignores allowlist changes made after the original save.
 - Debugging: enable `WP_DEBUG` to inspect webhook send logs.
 
 ## FAQ
