@@ -64,6 +64,9 @@ function bono_arm_webhook_queue_profile_update($user_id, $form_data) {
         return;
     }
 
+    // Also scheduled from wp-admin; this covers sites whose admin is rarely opened.
+    bono_arm_webhook_maybe_schedule_cleanup();
+
     /**
      * Filter whether to spawn WP-Cron immediately after queueing a delivery.
      *
@@ -88,6 +91,13 @@ function bono_arm_webhook_queue_profile_update($user_id, $form_data) {
 function bono_arm_webhook_build_payload($user_id, $form_data) {
     $user = get_userdata($user_id);
     $payload = is_array($form_data) ? bono_arm_webhook_redact_payload($form_data) : array();
+    $allowlist = bono_arm_webhook_get_field_allowlist();
+
+    // Top-level keys only. The identity fields below are always added.
+    if (array() !== $allowlist) {
+        $payload = array_intersect_key($payload, array_flip($allowlist));
+    }
+
     $payload['user_id'] = $user_id;
     $payload['user_login'] = $user ? (string) $user->user_login : '';
     $payload['user_email'] = $user ? (string) $user->user_email : '';
@@ -95,7 +105,7 @@ function bono_arm_webhook_build_payload($user_id, $form_data) {
     /**
      * Filter the complete outbound profile-update payload.
      *
-     * Return an allowlisted subset here to send only specific fields.
+     * Runs after redaction and the field allowlist setting.
      *
      * @param array<string, mixed> $payload Outbound payload after credential redaction.
      * @param int                  $user_id WordPress user ID.
@@ -282,6 +292,7 @@ function bono_arm_webhook_attempt_delivery($delivery_id, $delivery) {
     }
 
     if ($attempt >= 4 || ($status >= 400 && $status < 500 && 408 !== $status && 429 !== $status)) {
+        bono_arm_webhook_keep_failed_delivery($delivery_id, $delivery, $status, $attempt);
         delete_option($option_key);
         bono_arm_webhook_record_outcome($delivery_id, 'failed', $status, $attempt);
         bono_arm_webhook_log(sprintf('Delivery %s permanently failed after %d attempt(s), HTTP %d.', $delivery_id, $attempt, $status));
@@ -320,6 +331,142 @@ function bono_arm_webhook_attempt_delivery($delivery_id, $delivery) {
 
     bono_arm_webhook_record_outcome($delivery_id, 'retrying', $status, $attempt);
     bono_arm_webhook_log(sprintf('Delivery %s scheduled for retry %d.', $delivery_id, $attempt + 1));
+}
+
+/**
+ * Keep a permanently failed delivery so it can be resent once the receiver is fixed.
+ *
+ * Stored as a non-autoloaded option for BONO_ARM_WEBHOOK_FAILED_TTL, then swept.
+ *
+ * @param string               $delivery_id Delivery UUID.
+ * @param array<string, mixed> $delivery    Stored delivery state.
+ * @param int                  $status      Effective HTTP status of the last attempt.
+ * @param int                  $attempt     Number of attempts made.
+ */
+function bono_arm_webhook_keep_failed_delivery($delivery_id, $delivery, $status, $attempt) {
+    /**
+     * Filter whether permanently failed deliveries are kept for resending.
+     *
+     * @param bool   $keep        Whether to keep the payload. Default true.
+     * @param string $delivery_id Delivery UUID.
+     */
+    if (!apply_filters('bono_arm_webhook_keep_failed_deliveries', true, $delivery_id)) {
+        return;
+    }
+
+    // update_option, not add_option: a row left by a concurrent resend must be
+    // overwritten rather than silently kept stale.
+    update_option(
+        BONO_ARM_WEBHOOK_FAILED_PREFIX . $delivery_id,
+        array(
+            'body' => (string) $delivery['body'],
+            'status' => $status,
+            'attempt' => $attempt,
+            'failed_at' => time(),
+        ),
+        false
+    );
+}
+
+/**
+ * Remove queued and kept deliveries that carry a deleted user's profile data.
+ *
+ * @param int $user_id Deleted user's ID.
+ */
+function bono_arm_webhook_forget_user($user_id) {
+    global $wpdb;
+
+    foreach (array(BONO_ARM_WEBHOOK_DELIVERY_PREFIX, BONO_ARM_WEBHOOK_FAILED_PREFIX) as $prefix) {
+        $names = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s",
+                $wpdb->esc_like($prefix) . '%'
+            )
+        );
+
+        foreach ((array) $names as $option_name) {
+            if (!bono_arm_webhook_is_queue_key($option_name, $prefix)) {
+                continue;
+            }
+
+            $row = get_option($option_name);
+            $payload = is_array($row) && isset($row['body']) ? json_decode((string) $row['body'], true) : null;
+
+            if (is_array($payload) && isset($payload['user_id']) && (int) $payload['user_id'] === (int) $user_id) {
+                delete_option($option_name);
+            }
+        }
+    }
+}
+
+/**
+ * Return the ids of kept failed deliveries, oldest first.
+ *
+ * @return array<int, string>
+ */
+function bono_arm_webhook_get_failed_delivery_ids() {
+    global $wpdb;
+
+    $names = $wpdb->get_col(
+        $wpdb->prepare(
+            "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s ORDER BY option_id LIMIT 1000",
+            $wpdb->esc_like(BONO_ARM_WEBHOOK_FAILED_PREFIX) . '%'
+        )
+    );
+    $ids = array();
+
+    foreach ((array) $names as $option_name) {
+        if (bono_arm_webhook_is_queue_key($option_name, BONO_ARM_WEBHOOK_FAILED_PREFIX)) {
+            $ids[] = substr($option_name, strlen(BONO_ARM_WEBHOOK_FAILED_PREFIX));
+        }
+    }
+
+    return $ids;
+}
+
+/**
+ * Queue kept failed deliveries again under their original delivery ids.
+ *
+ * Reusing the id lets a receiver that did store the first attempt recognise
+ * the resend through its idempotency check. Works in batches, oldest first,
+ * so one click cannot flood the cron option or a single cron run.
+ *
+ * @param int $limit Maximum number of deliveries to queue.
+ * @return int Number of deliveries queued.
+ */
+function bono_arm_webhook_resend_failed_deliveries($limit = 50) {
+    $queued = 0;
+
+    foreach (array_slice(bono_arm_webhook_get_failed_delivery_ids(), 0, max(1, (int) $limit)) as $delivery_id) {
+        $failed_key = BONO_ARM_WEBHOOK_FAILED_PREFIX . $delivery_id;
+        $queue_key = BONO_ARM_WEBHOOK_DELIVERY_PREFIX . $delivery_id;
+        $failed = get_option($failed_key);
+
+        if (!is_array($failed) || !isset($failed['body'])) {
+            delete_option($failed_key);
+            continue;
+        }
+
+        if (!add_option($queue_key, array('attempt' => 0, 'body' => (string) $failed['body'], 'created_at' => time()), '', false)) {
+            continue;
+        }
+
+        // Remove the kept copy before scheduling, so a resend that fails again
+        // is re-kept by the delivery itself and not deleted afterwards.
+        delete_option($failed_key);
+        $scheduled = wp_schedule_single_event(time(), BONO_ARM_WEBHOOK_DELIVERY_HOOK, array($delivery_id), true);
+
+        if (is_wp_error($scheduled)) {
+            delete_option($queue_key);
+            add_option($failed_key, $failed, '', false);
+            bono_arm_webhook_log(sprintf('Failed delivery %s could not be queued again: %s', $delivery_id, $scheduled->get_error_message()));
+            continue;
+        }
+
+        $queued++;
+    }
+
+    return $queued;
 }
 
 /**
@@ -583,7 +730,7 @@ function bono_arm_webhook_cleanup_expired_deliveries() {
 
     $delivery_names = $wpdb->get_col(
         $wpdb->prepare(
-            "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s LIMIT 500",
+            "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s ORDER BY option_id LIMIT 500",
             $wpdb->esc_like(BONO_ARM_WEBHOOK_DELIVERY_PREFIX) . '%'
         )
     );
@@ -602,7 +749,7 @@ function bono_arm_webhook_cleanup_expired_deliveries() {
 
     $lock_names = $wpdb->get_col(
         $wpdb->prepare(
-            "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s LIMIT 500",
+            "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s ORDER BY option_id LIMIT 500",
             $wpdb->esc_like(BONO_ARM_WEBHOOK_LOCK_PREFIX) . '%'
         )
     );
@@ -614,6 +761,14 @@ function bono_arm_webhook_cleanup_expired_deliveries() {
 
         if ((int) get_option($option_name, 0) < time() - BONO_ARM_WEBHOOK_LOCK_TTL) {
             delete_option($option_name);
+        }
+    }
+
+    foreach (bono_arm_webhook_get_failed_delivery_ids() as $delivery_id) {
+        $failed = get_option(BONO_ARM_WEBHOOK_FAILED_PREFIX . $delivery_id);
+
+        if (!is_array($failed) || !isset($failed['failed_at']) || (int) $failed['failed_at'] < time() - BONO_ARM_WEBHOOK_FAILED_TTL) {
+            delete_option(BONO_ARM_WEBHOOK_FAILED_PREFIX . $delivery_id);
         }
     }
 }
@@ -633,12 +788,12 @@ function bono_arm_webhook_is_queue_key($option_name, $prefix) {
 }
 
 /**
- * Remove every queued delivery, lock, and legacy delivery transient.
+ * Remove every queued delivery, lock, kept failed delivery, and legacy delivery transient.
  */
 function bono_arm_webhook_purge_queue() {
     global $wpdb;
 
-    foreach (array(BONO_ARM_WEBHOOK_DELIVERY_PREFIX, BONO_ARM_WEBHOOK_LOCK_PREFIX) as $prefix) {
+    foreach (array(BONO_ARM_WEBHOOK_DELIVERY_PREFIX, BONO_ARM_WEBHOOK_LOCK_PREFIX, BONO_ARM_WEBHOOK_FAILED_PREFIX) as $prefix) {
         $names = $wpdb->get_col(
             $wpdb->prepare(
                 "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s",

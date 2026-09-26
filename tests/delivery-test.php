@@ -485,6 +485,59 @@ assert_same(
 bono_arm_webhook_purge_queue();
 assert_same(array(BONO_ARM_WEBHOOK_OPTION_DELIVERY_STATS), array_keys($GLOBALS['test_options']), 'Deactivation purged the stats option or left a queued delivery.');
 
+// Permanently failed deliveries are kept for resending.
+run_attempt(http_response(403));
+$failed = get_option(BONO_ARM_WEBHOOK_FAILED_PREFIX . TEST_DELIVERY_ID);
+assert_same(array('{"a":1}', 403, 1), array($failed['body'], $failed['status'], $failed['attempt']), 'A permanent failure was not kept with its body, status, and attempt.');
+assert_same(null, stored_delivery(), 'A kept failure was left in the queue.');
+assert_same(array(TEST_DELIVERY_ID), bono_arm_webhook_get_failed_delivery_ids(), 'The kept failure was not listed.');
+
+$GLOBALS['test_cron'] = array();
+assert_same(1, bono_arm_webhook_resend_failed_deliveries(), 'Resend did not report one queued delivery.');
+assert_same(array('attempt' => 0, 'body' => '{"a":1}'), array_intersect_key((array) stored_delivery(), array('attempt' => 0, 'body' => 0)), 'Resend did not queue the original body with a fresh attempt counter.');
+assert_same(array(TEST_DELIVERY_ID), first_recorded('test_cron')[2], 'Resend did not schedule the original delivery id.');
+assert_same(false, get_option(BONO_ARM_WEBHOOK_FAILED_PREFIX . TEST_DELIVERY_ID), 'Resend left the failed row behind.');
+
+// Resend works in batches, oldest first.
+$GLOBALS['test_options'] = array(
+    BONO_ARM_WEBHOOK_FAILED_PREFIX . $expired_id => array('body' => '{}', 'status' => 403, 'attempt' => 1, 'failed_at' => time()),
+    BONO_ARM_WEBHOOK_FAILED_PREFIX . $fresh_id => array('body' => '{}', 'status' => 403, 'attempt' => 1, 'failed_at' => time()),
+);
+assert_same(1, bono_arm_webhook_resend_failed_deliveries(1), 'Resend ignored its batch limit.');
+assert_same(array($fresh_id), bono_arm_webhook_get_failed_delivery_ids(), 'Resend did not take the oldest failure first.');
+
+// A failure that is already kept is overwritten, not left stale.
+run_attempt(http_response(403));
+$GLOBALS['test_options'][BONO_ARM_WEBHOOK_FAILED_PREFIX . TEST_DELIVERY_ID]['failed_at'] = 1;
+$GLOBALS['test_options'][BONO_ARM_WEBHOOK_DELIVERY_PREFIX . TEST_DELIVERY_ID] = array('attempt' => 0, 'body' => '{"a":2}', 'created_at' => time());
+$GLOBALS['test_responses'] = array(http_response(403));
+bono_arm_webhook_process_delivery(TEST_DELIVERY_ID);
+assert_same('{"a":2}', get_option(BONO_ARM_WEBHOOK_FAILED_PREFIX . TEST_DELIVERY_ID)['body'], 'A repeated failure did not overwrite the kept copy.');
+
+// Deleting a user removes the queued and kept payloads that carry their data.
+$GLOBALS['test_options'] = array(
+    BONO_ARM_WEBHOOK_FAILED_PREFIX . $expired_id => array('body' => '{"user_id":7}', 'failed_at' => time()),
+    BONO_ARM_WEBHOOK_DELIVERY_PREFIX . $fresh_id => array('attempt' => 0, 'body' => '{"user_id":7}', 'created_at' => time()),
+    BONO_ARM_WEBHOOK_FAILED_PREFIX . $fresh_id => array('body' => '{"user_id":8}', 'failed_at' => time()),
+    BONO_ARM_WEBHOOK_OPTION_DELIVERY_STATS => array('since' => time()),
+);
+bono_arm_webhook_forget_user(7);
+assert_same(array(BONO_ARM_WEBHOOK_FAILED_PREFIX . $fresh_id, BONO_ARM_WEBHOOK_OPTION_DELIVERY_STATS), array_keys($GLOBALS['test_options']), 'Deleting a user did not remove exactly their queued and kept payloads.');
+
+$GLOBALS['test_filters']['bono_arm_webhook_keep_failed_deliveries'] = false;
+run_attempt(http_response(403));
+assert_same(array(), bono_arm_webhook_get_failed_delivery_ids(), 'A failure was kept although the filter disabled it.');
+unset($GLOBALS['test_filters']['bono_arm_webhook_keep_failed_deliveries']);
+
+$GLOBALS['test_options'] = array(
+    BONO_ARM_WEBHOOK_FAILED_PREFIX . $expired_id => array('body' => '{}', 'status' => 403, 'attempt' => 1, 'failed_at' => time() - BONO_ARM_WEBHOOK_FAILED_TTL - 1),
+    BONO_ARM_WEBHOOK_FAILED_PREFIX . $fresh_id => array('body' => '{}', 'status' => 403, 'attempt' => 1, 'failed_at' => time()),
+);
+bono_arm_webhook_cleanup_expired_deliveries();
+assert_same(array(BONO_ARM_WEBHOOK_FAILED_PREFIX . $fresh_id), array_keys($GLOBALS['test_options']), 'The cleanup did not remove only the failure older than 7 days.');
+bono_arm_webhook_purge_queue();
+assert_same(array(), $GLOBALS['test_options'], 'Deactivation left a kept failure with profile data behind.');
+
 // Upgrade flag.
 $GLOBALS['test_options'] = array();
 bono_arm_webhook_maybe_flag_receiver_upgrade();
@@ -527,5 +580,34 @@ assert_same('stored-secret-value', bono_arm_webhook_sanitize_secret('new-secret-
 $GLOBALS['test_options'] = array();
 bono_arm_webhook_maybe_flag_receiver_upgrade();
 assert_same(false, get_option(BONO_ARM_WEBHOOK_OPTION_UPGRADE_NOTICE), 'A fresh install using WEBHOOKARM_SECRET was flagged as an upgrade.');
+
+// Field allowlist.
+$GLOBALS['test_settings_errors'] = array();
+assert_same("first_name\nlast_name\nphone.home", bono_arm_webhook_sanitize_field_allowlist(" first_name, last_name\r\nbad key!\n\nfirst_name\naddress[city]\nphone.home"), 'The allowlist was not normalized to unique valid keys.');
+assert_same(array('bono_arm_webhook_invalid_field'), $GLOBALS['test_settings_errors'], 'An invalid allowlist key did not report a settings error.');
+assert_same('', bono_arm_webhook_sanitize_field_allowlist(null), 'A non-string allowlist was not cleared.');
+$GLOBALS['test_options'] = array(BONO_ARM_WEBHOOK_OPTION_FIELD_ALLOWLIST => "first_name");
+$GLOBALS['test_settings_errors'] = array();
+assert_same('first_name', bono_arm_webhook_sanitize_field_allowlist("first name, phone number"), 'An allowlist with no valid keys replaced the saved list with "send everything".');
+assert_same(array('bono_arm_webhook_invalid_allowlist'), $GLOBALS['test_settings_errors'], 'An allowlist with no valid keys did not report an error.');
+assert_same('', bono_arm_webhook_sanitize_field_allowlist(''), 'An empty allowlist field did not clear the list.');
+
+$GLOBALS['test_options'] = array(BONO_ARM_WEBHOOK_OPTION_FIELD_ALLOWLIST => "first_name\nnested");
+$payload = bono_arm_webhook_build_payload(42, array('first_name' => 'Jane', 'last_name' => 'Doe', 'user_pass' => 'x', 'nested' => array('city' => 'LA', 'api_key' => 'k')));
+assert_same(array('first_name', 'nested', 'user_id', 'user_login', 'user_email'), array_keys($payload), 'The allowlist did not keep exactly the listed fields plus the identity fields.');
+assert_same(array('city' => 'LA'), $payload['nested'], 'Redaction did not run before the allowlist.');
+
+$GLOBALS['test_options'] = array(BONO_ARM_WEBHOOK_OPTION_FIELD_ALLOWLIST => "user_pass");
+$payload = bono_arm_webhook_build_payload(42, array('user_pass' => 'x', 'first_name' => 'Jane'));
+assert_same(array('user_id', 'user_login', 'user_email'), array_keys($payload), 'Allowlisting a credential field bypassed redaction.');
+
+$GLOBALS['test_options'] = array();
+$payload = bono_arm_webhook_build_payload(42, array('first_name' => 'Jane', 'last_name' => 'Doe'));
+assert_same(array('first_name', 'last_name', 'user_id', 'user_login', 'user_email'), array_keys($payload), 'An empty allowlist did not send every field.');
+
+// Premium ARMember detection: only premium fires arm_update_profile_external.
+assert_same(false, bono_arm_webhook_premium_armember_active(), 'Premium ARMember was reported active without it.');
+define('MEMBERSHIP_DIR_NAME', 'armember');
+assert_same(true, bono_arm_webhook_premium_armember_active(), 'Premium ARMember was not detected.');
 
 echo "Delivery tests passed.\n";

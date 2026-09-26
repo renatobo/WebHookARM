@@ -4,7 +4,7 @@ Tags: armember, webhook, google sheets, apps script, make, automation, profile u
 Requires at least: 7.0
 Tested up to: 7.1.2
 Requires PHP: 8.0
-Stable tag: 2.1.3
+Stable tag: 2.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -94,7 +94,7 @@ Redirects are not followed. Google Apps Script answers every POST with a redirec
 
 = Does this work without ARMember? =
 
-No. WebHookARM is triggered by ARMember's `arm_update_profile_external` event.
+No. WebHookARM is triggered by ARMember's `arm_update_profile_external` event, which only ARMember premium fires, when a logged-in member saves their profile on the frontend. ARMember Lite (`armember-membership`) is required because premium runs on top of it, but Lite alone never fires the event, and the settings page warns when premium is missing. Admin edits, member imports, and bulk actions don't fire it either.
 
 = Can I use this without Google Sheets? =
 
@@ -103,6 +103,14 @@ Yes. Any endpoint that accepts authenticated JSON `POST` requests can be used.
 = Is the secret included in the URL? =
 
 No. URLs contain only a short-lived signature, timestamp, action, and delivery identifier. The shared secret is used to calculate the signature and is never transmitted.
+
+= What happens to deliveries that fail? =
+
+Temporary failures are retried after 1, 5, and 15 minutes. Deliveries that fail permanently, for example because the receiver rejects the signature, are kept for 7 days, including their profile data. Once the receiver is fixed, click **Resend failed deliveries** on the Delivery status card; up to 50 are queued per click. They are sent again under their original delivery ids with their original payloads. A receiver that deduplicates by id skips any it already stored (the bundled Apps Script only remembers ids for 6 hours), and a resend can overwrite newer data at a receiver that updates records in place. Deactivating or deleting the plugin, or deleting the user, removes them.
+
+= Can I send only some fields? =
+
+Yes. List the ARMember field keys under **Send only these fields** on the Webhook tab, one per line. `user_id`, `user_login`, and `user_email` are always sent. Leave it empty to send every field except credential-like ones.
 
 = Can I keep the secret out of the database? =
 
@@ -117,6 +125,14 @@ Install the Git Updater plugin: https://github.com/afragen/git-updater
 See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 
 == Changelog ==
+
+= 2.2.0 =
+* Permanently failed deliveries are now kept for 7 days instead of discarded. The Delivery status card shows how many are kept, and "Resend failed deliveries" sends them again, 50 per click, under their original delivery ids once the receiver is fixed. Deactivating the plugin (on every site for a network deactivation), deleting it, or deleting the user removes them.
+* New optional "Send only these fields" setting: list ARMember field keys to limit what is sent. `user_id`, `user_login`, and `user_email` are always included, and credential-like fields are still removed.
+* The settings page warns when ARMember premium is not active. Only premium sends profile updates; ARMember Lite alone never does.
+* The daily cleanup is also scheduled when a delivery is queued, so sites that rarely open wp-admin still clean up.
+* Settings code moved into `includes/`; no behaviour change.
+* New WordPress integration test in CI covering WordPress 7.0 and the latest release.
 
 = 2.1.3 =
 * Fixed the delivery totals and last failure on the Delivery status card being erased by the daily cleanup and on deactivation. The cleanup matched the totals option by its name prefix; it now only touches queued deliveries.
@@ -174,6 +190,9 @@ See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 * Initial public release.
 
 == Upgrade Notice ==
+
+= 2.2.0 =
+Failed deliveries can now be resent after fixing the receiver, and you can limit which fields are sent. No receiver changes needed.
 
 = 2.1.3 =
 The Delivery status totals and last failure no longer reset every day.

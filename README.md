@@ -17,6 +17,8 @@ Send ARMember profile updates to a secure JSON webhook for Google Apps Script, M
 - Redacts credential-like fields and caps serialized payloads at 256 KiB
 - Shows the latest delivery outcome, delivered and failed totals, and the last permanent failure, and sends a signed test delivery from the settings screen
 - Accepts the shared secret from a `WEBHOOKARM_SECRET` constant in `wp-config.php`
+- Optional field allowlist: send only the ARMember fields you list
+- Keeps permanently failed deliveries for 7 days and resends them with one click once the receiver is fixed
 - Configurable from a tabbed WordPress admin screen: **Settings -> ARMember WebHook**
 - Git Updater-compatible release assets published automatically from GitHub Actions
 
@@ -24,7 +26,7 @@ Send ARMember profile updates to a secure JSON webhook for Google Apps Script, M
 
 - WordPress 7.0+
 - PHP 8.0+
-- ARMember plugin installed and active
+- ARMember premium installed and active. It runs on top of the free ARMember Lite (`armember-membership`), which is also required. Lite alone never sends profile updates, and the settings page warns when premium is missing.
 - A webhook endpoint URL (Google Apps Script, Make.com, or custom API)
 
 ## Quick Start
@@ -119,10 +121,13 @@ Other receivers should use status codes: `2xx` for success, `408`/`429`/`5xx` to
 | `bono_arm_webhook_effective_status` | filter | Map a receiver reply to the status the retry logic uses |
 | `bono_arm_webhook_allow_insecure_url` | filter | Allow an HTTP URL for local testing |
 | `bono_arm_webhook_spawn_cron` | filter | Spawn WP-Cron right after queueing (off by default) |
+| `bono_arm_webhook_keep_failed_deliveries` | filter | Return false to discard permanently failed deliveries instead of keeping them for 7 days |
 | `bono_arm_webhook_delivery_succeeded` | action | Delivery id, status, attempt |
 | `bono_arm_webhook_delivery_failed` | action | Delivery id, status, attempts, after the delivery is abandoned |
 
-Example allowlist:
+To send only specific fields without code, list their keys under **Send only these fields** on the Webhook tab, one per line. `user_id`, `user_login`, and `user_email` are always sent, and only top-level keys are matched.
+
+Example allowlist in code:
 
 ```php
 add_filter('bono_arm_webhook_payload', function ($payload) {
@@ -163,7 +168,14 @@ Release packaging keeps only WordPress runtime files:
 - Removes all other `.md` files
 - Removes `.sh` scripts that are not used by WordPress at runtime
 
-Latest planned release: `2.1.3`
+Latest planned release: `2.2.0`
+
+- Keeps permanently failed deliveries for 7 days and resends them on request.
+- Optional "Send only these fields" allowlist.
+- Warns when ARMember premium is not active.
+- Schedules the daily cleanup from the queue path too.
+
+Previous release: `2.1.3`
 
 - Stops the daily cleanup and deactivation from erasing the Delivery status totals and last failure.
 
@@ -189,13 +201,14 @@ Previous release: `2.1.0`
 - 401/403 at endpoint: verify secret key and validation logic.
 - Invalid payload format: ensure receiver accepts `application/json`.
 - Check **Delivery status** on the Webhook tab, or use **Send test delivery**.
+- After fixing a receiver, use **Resend failed deliveries** on the same card (up to 50 per click). Failed deliveries are kept for 7 days, removed on deactivation, uninstall, or when their user is deleted, and resent under their original delivery ids with their original payloads. A receiver that deduplicates by id skips any it already stored; the bundled Apps Script only remembers ids for 6 hours. A resend can overwrite newer data at a receiver that updates records in place, and it ignores allowlist changes made after the original save.
 - Debugging: enable `WP_DEBUG` to inspect webhook send logs.
 
 ## FAQ
 
 ### Does this work without ARMember?
 
-No. WebHookARM is triggered by ARMember profile update hooks.
+No. WebHookARM is triggered by ARMember's `arm_update_profile_external` event, which only ARMember premium fires, when a logged-in member saves their profile on the frontend. ARMember Lite alone never fires it, and admin edits, member imports, and bulk actions don't either.
 
 ### Can I send to something other than Google Sheets?
 

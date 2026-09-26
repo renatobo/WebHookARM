@@ -139,12 +139,13 @@ settings_page() {
     curl -s -b "$JAR" "$SITE/wp-admin/options-general.php?page=webhookarm"
 }
 
-# The settings form's nonce comes first on the page, the test form's second.
+# Nonces in page order: settings form, test delivery form, resend form.
 page_nonce() {
     settings_page | grep -o 'name="_wpnonce" value="[0-9a-f]*"' | sed -n "${1}p" | sed 's/.*value="\([0-9a-f]*\)"/\1/'
 }
 
-# Mirrors a browser submit: every registered field is posted.
+# Mirrors a browser submit of the enable, URL, and secret fields; pass extra
+# fields (such as the allowlist) as additional curl arguments.
 save_settings() {
     local url="$1" secret="$2"
     shift 2
@@ -157,6 +158,13 @@ save_settings() {
         --data-urlencode "bono_arm_webhook_secret=$secret" \
         "$@" \
         "$SITE/wp-admin/options.php"
+}
+
+resend_failed() {
+    curl -s -o /dev/null -D - -b "$JAR" \
+        --data-urlencode "action=bono_arm_webhook_resend_failed" \
+        --data-urlencode "_wpnonce=$(page_nonce 3)" \
+        "$SITE/wp-admin/admin-post.php" | tr -d '\r' | sed -n 's/^[Ll]ocation: //p'
 }
 
 send_test_delivery() {
@@ -229,6 +237,16 @@ page="$(settings_page)"
 assert_contains "$page" "WebHookARM Settings" "settings page renders for an administrator"
 assert_contains "$page" "Delivery status" "settings page shows the delivery status card"
 assert_contains "$page" "assets/admin.js" "settings page enqueues its script"
+assert_contains "$page" "ARMember premium is not active" "settings page warns when only ARMember Lite is active"
+
+mkdir -p "$WP_DIR/wp-content/plugins/armember"
+printf '%s\n' '<?php' '/**' ' * Plugin Name: ARMember premium (integration test stub)' ' */' "define('MEMBERSHIP_DIR_NAME', 'armember');" \
+    > "$WP_DIR/wp-content/plugins/armember/armember.php"
+$WP plugin activate armember >/dev/null
+case "$(settings_page)" in
+    *"ARMember premium is not active"*) fail "the premium warning is gone once ARMember premium is active" ;;
+    *) pass "the premium warning is gone once ARMember premium is active" ;;
+esac
 
 autoload="$($WP eval 'global $wpdb; echo $wpdb->get_var("SELECT autoload FROM {$wpdb->options} WHERE option_name = \"bono_arm_webhook_installed_version\"");')"
 case "$autoload" in on|yes) pass "installed version is recorded as autoloaded" ;; *) fail "installed version autoload is '$autoload'" ;; esac
@@ -273,6 +291,25 @@ queue_update
 run_cron
 assert_eq "$(last_outcome)" "failed 403" "a 403 from the receiver is a permanent failure"
 assert_eq "$(count_queued delivery)" "0" "a permanently failed update is removed from the queue"
+assert_eq "$(count_queued failed)" "1" "a permanently failed update is kept for resending"
+
+# --- Field allowlist, saved through the settings form ----------------------
+
+save_settings "http://127.0.0.1:8081/hook" "" --data-urlencode $'bono_arm_webhook_field_allowlist=first_name\nnested' >/dev/null
+assert_eq "$(option bono_arm_webhook_field_allowlist)" $'first_name\nnested' "the field allowlist is saved"
+: > "$LOG"
+queue_update
+run_cron
+assert_eq "$(jq -r '.body | fromjson | keys_unsorted | join(",")' <<<"$(last_request receiver)")" "first_name,nested,user_id,user_login,user_email" "the allowlist sends only the listed fields plus identity fields"
+save_settings "http://127.0.0.1:8081/hook" "" --data-urlencode "bono_arm_webhook_field_allowlist=" >/dev/null
+assert_eq "$(option bono_arm_webhook_field_allowlist)" "" "an empty allowlist field clears the setting"
+
+# --- The cleanup is scheduled from the queue path too ----------------------
+
+$WP cron event unschedule bono_arm_webhook_cleanup_deliveries >/dev/null 2>&1 || true
+queue_update
+assert_eq "$(count_events bono_arm_webhook_cleanup_deliveries)" "1" "queueing a delivery schedules the daily cleanup if missing"
+run_cron
 
 # --- Apps Script: POST without redirects, then a bodyless GET for the reply --
 
@@ -295,6 +332,32 @@ set_url "http://script.google.com:8081/macros/s/rejected/exec"
 queue_update
 run_cron
 assert_eq "$(last_outcome)" "failed 422" "an Apps Script Request rejected reply is a permanent failure"
+
+# --- Resending kept failures once the receiver is fixed --------------------
+
+assert_eq "$(count_queued failed)" "2" "both permanent failures are kept"
+assert_contains "$(settings_page)" "Resend failed deliveries" "the status card offers to resend kept failures"
+set_url "http://127.0.0.1:8081/hook"
+: > "$LOG"
+assert_contains "$(resend_failed)" "webhookarm_resent=2" "Resend failed deliveries queues both again"
+assert_eq "$(count_queued failed)" "0" "resent failures are no longer kept"
+run_cron
+assert_eq "$(count_requests receiver)" "2" "both resent deliveries reach the fixed receiver"
+assert_eq "$(last_outcome)" "succeeded 200" "the resent deliveries succeed"
+
+# --- Kept failures are erased with their user; resend needs a destination ---
+
+member_id="$($WP user create member member@example.com --porcelain)"
+set_url "http://127.0.0.1:8081/reject"
+MEMBER_ID="$member_id" $WP eval 'do_action("arm_update_profile_external", (int) getenv("MEMBER_ID"), array("first_name" => "Member"));'
+run_cron
+assert_eq "$(count_queued failed)" "1" "a member's failed delivery is kept"
+$WP user delete "$member_id" --yes >/dev/null
+assert_eq "$(count_queued failed)" "0" "deleting the user erases their kept payload"
+
+set_url ""
+assert_contains "$(resend_failed)" "webhookarm_resent=-1" "resend is refused while no webhook URL is saved"
+set_url "http://127.0.0.1:8081/hook"
 
 set_url "http://script.google.com:8081/macros/s/retry/exec"
 queue_update
