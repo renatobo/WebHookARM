@@ -30,6 +30,42 @@ class WP_Error {
     }
 }
 
+/**
+ * Just enough of wpdb for the LIKE sweeps over the options table.
+ */
+class Test_WPDB {
+    public $options = 'wp_options';
+
+    public function esc_like($text) {
+        return addcslashes($text, '_%\\');
+    }
+
+    public function prepare($query, ...$args) {
+        return array($query, $args);
+    }
+
+    public function get_col($prepared) {
+        $pattern = '';
+        $like = (string) $prepared[1][0];
+
+        for ($i = 0; $i < strlen($like); $i++) {
+            if ('\\' === $like[$i]) {
+                $pattern .= preg_quote($like[++$i], '/');
+            } elseif ('%' === $like[$i]) {
+                $pattern .= '.*';
+            } elseif ('_' === $like[$i]) {
+                $pattern .= '.';
+            } else {
+                $pattern .= preg_quote($like[$i], '/');
+            }
+        }
+
+        return array_values(preg_grep('/^' . $pattern . '$/', array_keys($GLOBALS['test_options'])));
+    }
+}
+
+$GLOBALS['wpdb'] = new Test_WPDB();
+
 function apply_filters($hook, $value) {
     return isset($GLOBALS['test_filters'][$hook]) ? $GLOBALS['test_filters'][$hook] : $value;
 }
@@ -430,6 +466,24 @@ assert_same('succeeded', get_option(BONO_ARM_WEBHOOK_OPTION_LAST_DELIVERY)['outc
 
 run_attempt(http_response(500));
 assert_same(false, get_option(BONO_ARM_WEBHOOK_OPTION_DELIVERY_STATS), 'A retry was counted as a final outcome.');
+
+// Queue sweeps only touch UUID-keyed rows; the stats option shares the prefix.
+$expired_id = '22222222-2222-4333-8444-555555555555';
+$fresh_id = '33333333-2222-4333-8444-555555555555';
+$GLOBALS['test_options'] = array(
+    BONO_ARM_WEBHOOK_DELIVERY_PREFIX . $expired_id => array('attempt' => 1, 'body' => '{}', 'created_at' => time() - DAY_IN_SECONDS - 1),
+    BONO_ARM_WEBHOOK_DELIVERY_PREFIX . $fresh_id => array('attempt' => 1, 'body' => '{}', 'created_at' => time()),
+    BONO_ARM_WEBHOOK_LOCK_PREFIX . $expired_id => time() - BONO_ARM_WEBHOOK_LOCK_TTL - 1,
+    BONO_ARM_WEBHOOK_OPTION_DELIVERY_STATS => array('since' => time(), 'succeeded' => 3, 'failed' => 1),
+);
+bono_arm_webhook_cleanup_expired_deliveries();
+assert_same(
+    array(BONO_ARM_WEBHOOK_DELIVERY_PREFIX . $fresh_id, BONO_ARM_WEBHOOK_OPTION_DELIVERY_STATS),
+    array_keys($GLOBALS['test_options']),
+    'The daily cleanup did not keep exactly the fresh delivery and the stats option.'
+);
+bono_arm_webhook_purge_queue();
+assert_same(array(BONO_ARM_WEBHOOK_OPTION_DELIVERY_STATS), array_keys($GLOBALS['test_options']), 'Deactivation purged the stats option or left a queued delivery.');
 
 // Upgrade flag.
 $GLOBALS['test_options'] = array();

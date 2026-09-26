@@ -163,7 +163,11 @@ Release packaging keeps only WordPress runtime files:
 - Removes all other `.md` files
 - Removes `.sh` scripts that are not used by WordPress at runtime
 
-Latest planned release: `2.1.2`
+Latest planned release: `2.1.3`
+
+- Stops the daily cleanup and deactivation from erasing the Delivery status totals and last failure.
+
+Previous release: `2.1.2`
 
 - Declares compatibility with WordPress 7.1.2. No code changes.
 
