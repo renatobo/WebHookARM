@@ -26,4 +26,4 @@ jobs:
           coverage: none
 
       - name: Run Psalm
-        run: psalm --output-format=github --no-cache --shepherd --stats
+        run: psalm --output-format=github --no-cache --stats
