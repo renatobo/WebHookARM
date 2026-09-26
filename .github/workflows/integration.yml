@@ -1,0 +1,59 @@
+name: Integration
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  wordpress:
+    name: WordPress ${{ matrix.wp }} on PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Oldest supported pairing, and newest.
+          - wp: "7.0"
+            php: "8.0"
+          - wp: "latest"
+            php: "8.5"
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mysqli, curl, openssl
+          tools: wp-cli
+          coverage: none
+
+      - name: Run integration tests
+        run: bash tests/integration/run.sh
+        env:
+          WP_VERSION: ${{ matrix.wp }}
+          DB_HOST: 127.0.0.1:3306
+          DB_NAME: wordpress
+          DB_USER: root
+          DB_PASS: root
