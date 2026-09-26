@@ -485,6 +485,33 @@ assert_same(
 bono_arm_webhook_purge_queue();
 assert_same(array(BONO_ARM_WEBHOOK_OPTION_DELIVERY_STATS), array_keys($GLOBALS['test_options']), 'Deactivation purged the stats option or left a queued delivery.');
 
+// Permanently failed deliveries are kept for resending.
+run_attempt(http_response(403));
+$failed = get_option(BONO_ARM_WEBHOOK_FAILED_PREFIX . TEST_DELIVERY_ID);
+assert_same(array('{"a":1}', 403, 1), array($failed['body'], $failed['status'], $failed['attempt']), 'A permanent failure was not kept with its body, status, and attempt.');
+assert_same(null, stored_delivery(), 'A kept failure was left in the queue.');
+assert_same(array(TEST_DELIVERY_ID), bono_arm_webhook_get_failed_delivery_ids(), 'The kept failure was not listed.');
+
+$GLOBALS['test_cron'] = array();
+assert_same(1, bono_arm_webhook_resend_failed_deliveries(), 'Resend did not report one queued delivery.');
+assert_same(array('attempt' => 0, 'body' => '{"a":1}'), array_intersect_key((array) stored_delivery(), array('attempt' => 0, 'body' => 0)), 'Resend did not queue the original body with a fresh attempt counter.');
+assert_same(array(TEST_DELIVERY_ID), first_recorded('test_cron')[2], 'Resend did not schedule the original delivery id.');
+assert_same(false, get_option(BONO_ARM_WEBHOOK_FAILED_PREFIX . TEST_DELIVERY_ID), 'Resend left the failed row behind.');
+
+$GLOBALS['test_filters']['bono_arm_webhook_keep_failed_deliveries'] = false;
+run_attempt(http_response(403));
+assert_same(array(), bono_arm_webhook_get_failed_delivery_ids(), 'A failure was kept although the filter disabled it.');
+unset($GLOBALS['test_filters']['bono_arm_webhook_keep_failed_deliveries']);
+
+$GLOBALS['test_options'] = array(
+    BONO_ARM_WEBHOOK_FAILED_PREFIX . $expired_id => array('body' => '{}', 'status' => 403, 'attempt' => 1, 'failed_at' => time() - BONO_ARM_WEBHOOK_FAILED_TTL - 1),
+    BONO_ARM_WEBHOOK_FAILED_PREFIX . $fresh_id => array('body' => '{}', 'status' => 403, 'attempt' => 1, 'failed_at' => time()),
+);
+bono_arm_webhook_cleanup_expired_deliveries();
+assert_same(array(BONO_ARM_WEBHOOK_FAILED_PREFIX . $fresh_id), array_keys($GLOBALS['test_options']), 'The cleanup did not remove only the failure older than 7 days.');
+bono_arm_webhook_purge_queue();
+assert_same(array(), $GLOBALS['test_options'], 'Deactivation left a kept failure with profile data behind.');
+
 // Upgrade flag.
 $GLOBALS['test_options'] = array();
 bono_arm_webhook_maybe_flag_receiver_upgrade();

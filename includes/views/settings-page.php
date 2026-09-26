@@ -10,6 +10,7 @@
  * @var bool   $secret_from_constant
  * @var bool   $has_stored_secret
  * @var bool   $premium_active
+ * @var int    $failed_count
  * @var string $field_allowlist
  * @var string $project_url
  * @var string $author_url
@@ -68,6 +69,7 @@ if (!defined('ABSPATH')) {
 
             <?php settings_errors('bono_arm_webhook'); ?>
             <?php bono_arm_webhook_render_test_notice(); ?>
+            <?php bono_arm_webhook_render_resend_notice(); ?>
 
             <?php if ($webhook_enabled && ('' === $webhook_url || '' === $secret_key)) : ?>
                 <div class="notice notice-warning inline">
@@ -275,6 +277,27 @@ if (!defined('ABSPATH')) {
                         <p class="webhookarm-note">
                             <?php esc_html_e('Google Apps Script answers 200 even when it rejects a request. WebHookARM recognises the bundled sample\'s rejection reply, but always confirm records arrive at the receiver itself.', 'webhookarm'); ?>
                         </p>
+                        <?php if ($failed_count > 0) : ?>
+                            <p class="webhookarm-note">
+                                <strong>
+                                    <?php
+                                    printf(
+                                        esc_html(
+                                            /* translators: %d: Number of kept failed deliveries. */
+                                            _n('%d failed delivery is kept for 7 days.', '%d failed deliveries are kept for 7 days.', $failed_count, 'webhookarm')
+                                        ),
+                                        (int) $failed_count
+                                    );
+                                    ?>
+                                </strong>
+                                <?php esc_html_e('Fix the receiver, then resend them. Each is sent again with its original delivery id, so a receiver that did store it can skip the duplicate.', 'webhookarm'); ?>
+                            </p>
+                            <p>
+                                <button type="submit" form="webhookarm-resend-form" class="button button-primary">
+                                    <?php esc_html_e('Resend failed deliveries', 'webhookarm'); ?>
+                                </button>
+                            </p>
+                        <?php endif; ?>
                         <p>
                             <button type="submit" form="webhookarm-test-form" class="button button-secondary">
                                 <?php esc_html_e('Send test delivery', 'webhookarm'); ?>
@@ -517,6 +540,11 @@ if (!defined('ABSPATH')) {
             <form id="webhookarm-test-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                 <input type="hidden" name="action" value="bono_arm_webhook_test" />
                 <?php wp_nonce_field('bono_arm_webhook_test'); ?>
+            </form>
+
+            <form id="webhookarm-resend-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                <input type="hidden" name="action" value="bono_arm_webhook_resend_failed" />
+                <?php wp_nonce_field('bono_arm_webhook_resend_failed'); ?>
             </form>
         </div>
     </div>

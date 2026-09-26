@@ -40,6 +40,8 @@ non-autoloaded `bono_arm_webhook_delivery_<uuid>` option and schedules one cron 
 up after 4 attempts or a non-retryable 4xx. A 2xx whose body is `Request rejected`
 counts as a 4xx and `Retry later` as a 503, because Apps Script cannot set a status.
 Versions before 2.1 queued in transients; `bono_arm_webhook_get_delivery()` migrates them.
+A permanent failure moves the payload to `bono_arm_webhook_failed_<uuid>` for 7 days;
+"Resend failed deliveries" re-queues it under the same delivery id.
 
 ## Gotchas
 

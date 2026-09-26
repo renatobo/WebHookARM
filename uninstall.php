@@ -47,7 +47,7 @@ $bono_arm_webhook_cleanup = static function () {
      * Delete each through the API so object caches are invalidated, then sweep
      * any orphaned transient value or timeout rows.
      */
-    foreach ( array( 'bono_arm_webhook_delivery_', 'bono_arm_webhook_lock_' ) as $prefix ) {
+    foreach ( array( 'bono_arm_webhook_delivery_', 'bono_arm_webhook_lock_', 'bono_arm_webhook_failed_' ) as $prefix ) {
         $names = $wpdb->get_col(
             $wpdb->prepare(
                 "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s",

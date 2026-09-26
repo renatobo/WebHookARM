@@ -104,6 +104,10 @@ Yes. Any endpoint that accepts authenticated JSON `POST` requests can be used.
 
 No. URLs contain only a short-lived signature, timestamp, action, and delivery identifier. The shared secret is used to calculate the signature and is never transmitted.
 
+= What happens to deliveries that fail? =
+
+Temporary failures are retried after 1, 5, and 15 minutes. Deliveries that fail permanently, for example because the receiver rejects the signature, are kept for 7 days. Once the receiver is fixed, click **Resend failed deliveries** on the Delivery status card. They are sent again under their original delivery ids, so a receiver that deduplicates by id skips any it already stored. Deactivating or deleting the plugin removes them.
+
 = Can I send only some fields? =
 
 Yes. List the ARMember field keys under **Send only these fields** on the Webhook tab, one per line. `user_id`, `user_login`, and `user_email` are always sent. Leave it empty to send every field except credential-like ones.

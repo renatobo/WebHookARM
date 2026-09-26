@@ -39,6 +39,8 @@ define('BONO_ARM_WEBHOOK_DELIVERY_PREFIX', 'bono_arm_webhook_delivery_');
 define('BONO_ARM_WEBHOOK_OPTION_LAST_DELIVERY', 'bono_arm_webhook_last_delivery');
 define('BONO_ARM_WEBHOOK_OPTION_DELIVERY_STATS', 'bono_arm_webhook_delivery_stats');
 define('BONO_ARM_WEBHOOK_LOCK_PREFIX', 'bono_arm_webhook_lock_');
+define('BONO_ARM_WEBHOOK_FAILED_PREFIX', 'bono_arm_webhook_failed_');
+define('BONO_ARM_WEBHOOK_FAILED_TTL', 7 * 86400);
 define('BONO_ARM_WEBHOOK_LOCK_TTL', 300);
 define('BONO_ARM_WEBHOOK_CLEANUP_HOOK', 'bono_arm_webhook_cleanup_deliveries');
 
@@ -57,6 +59,7 @@ add_action('admin_init', 'bono_arm_webhook_maybe_schedule_cleanup');
 add_action('admin_notices', 'bono_arm_webhook_receiver_upgrade_notice');
 add_action('admin_enqueue_scripts', 'bono_arm_webhook_enqueue_admin_assets');
 add_action('admin_post_bono_arm_webhook_test', 'bono_arm_webhook_handle_test_delivery');
+add_action('admin_post_bono_arm_webhook_resend_failed', 'bono_arm_webhook_handle_resend_failed');
 add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'bono_arm_webhook_add_plugin_action_links');
 
 require_once __DIR__ . '/includes/delivery.php';

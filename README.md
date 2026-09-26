@@ -18,6 +18,7 @@ Send ARMember profile updates to a secure JSON webhook for Google Apps Script, M
 - Shows the latest delivery outcome, delivered and failed totals, and the last permanent failure, and sends a signed test delivery from the settings screen
 - Accepts the shared secret from a `WEBHOOKARM_SECRET` constant in `wp-config.php`
 - Optional field allowlist: send only the ARMember fields you list
+- Keeps permanently failed deliveries for 7 days and resends them with one click once the receiver is fixed
 - Configurable from a tabbed WordPress admin screen: **Settings -> ARMember WebHook**
 - Git Updater-compatible release assets published automatically from GitHub Actions
 
@@ -120,6 +121,7 @@ Other receivers should use status codes: `2xx` for success, `408`/`429`/`5xx` to
 | `bono_arm_webhook_effective_status` | filter | Map a receiver reply to the status the retry logic uses |
 | `bono_arm_webhook_allow_insecure_url` | filter | Allow an HTTP URL for local testing |
 | `bono_arm_webhook_spawn_cron` | filter | Spawn WP-Cron right after queueing (off by default) |
+| `bono_arm_webhook_keep_failed_deliveries` | filter | Return false to discard permanently failed deliveries instead of keeping them for 7 days |
 | `bono_arm_webhook_delivery_succeeded` | action | Delivery id, status, attempt |
 | `bono_arm_webhook_delivery_failed` | action | Delivery id, status, attempts, after the delivery is abandoned |
 
@@ -192,6 +194,7 @@ Previous release: `2.1.0`
 - 401/403 at endpoint: verify secret key and validation logic.
 - Invalid payload format: ensure receiver accepts `application/json`.
 - Check **Delivery status** on the Webhook tab, or use **Send test delivery**.
+- After fixing a receiver, use **Resend failed deliveries** on the same card. Failed deliveries are kept for 7 days and resent under their original delivery ids, so a receiver that deduplicates by id skips any it already stored.
 - Debugging: enable `WP_DEBUG` to inspect webhook send logs.
 
 ## FAQ

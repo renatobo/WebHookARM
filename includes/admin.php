@@ -376,6 +376,55 @@ function bono_arm_webhook_handle_test_delivery() {
 }
 
 /**
+ * Queue kept failed deliveries again and report how many.
+ */
+function bono_arm_webhook_handle_resend_failed() {
+    if (!current_user_can('manage_options')) {
+        wp_die(esc_html__('Sorry, you are not allowed to resend WebHookARM deliveries.', 'webhookarm'), '', array('response' => 403));
+    }
+
+    check_admin_referer('bono_arm_webhook_resend_failed');
+
+    $queued = bono_arm_webhook_resend_failed_deliveries();
+
+    wp_safe_redirect(
+        add_query_arg(
+            array(
+                'page' => 'webhookarm',
+                'webhookarm_resent' => $queued,
+            ),
+            admin_url('options-general.php')
+        )
+    );
+    exit;
+}
+
+/**
+ * Render the result notice after resending failed deliveries.
+ */
+function bono_arm_webhook_render_resend_notice() {
+    // Display-only: the value is a count set by our own redirect.
+    // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    if (!isset($_GET['webhookarm_resent'])) {
+        return;
+    }
+
+    // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    $queued = absint(wp_unslash((string) $_GET['webhookarm_resent']));
+
+    printf(
+        '<div class="notice notice-success inline"><p>%s</p></div>',
+        esc_html(
+            sprintf(
+                /* translators: %d: Number of deliveries queued again. */
+                _n('%d failed delivery was queued again. It will be sent on the next WP-Cron run.', '%d failed deliveries were queued again. They will be sent on the next WP-Cron run.', $queued, 'webhookarm'),
+                $queued
+            )
+        )
+    );
+}
+
+/**
  * Render the result notice for a test delivery, if one was just sent.
  */
 function bono_arm_webhook_render_test_notice() {
@@ -496,6 +545,7 @@ function bono_arm_webhook_settings_page() {
     $secret_from_constant = '' !== bono_arm_webhook_secret_from_constant();
     $has_stored_secret = '' !== bono_arm_webhook_get_stored_secret();
     $premium_active = bono_arm_webhook_premium_armember_active();
+    $failed_count = count(bono_arm_webhook_get_failed_delivery_ids());
     $field_allowlist = implode("\n", bono_arm_webhook_get_field_allowlist());
     $project_url = 'https://github.com/renatobo/WebHookARM';
     $author_url = 'https://github.com/renatobo';
