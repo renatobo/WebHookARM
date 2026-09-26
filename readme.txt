@@ -4,7 +4,7 @@ Tags: armember, webhook, google sheets, apps script, make, automation, profile u
 Requires at least: 7.0
 Tested up to: 7.0.2
 Requires PHP: 8.0
-Stable tag: 2.0.1
+Stable tag: 2.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -25,6 +25,8 @@ Key capabilities:
 * JSON webhook delivery (`application/json`)
 * Timestamped HMAC-SHA256 request signatures
 * Asynchronous delivery with bounded retries
+* Delivery status panel and signed test delivery
+* Delivery hooks for developers
 * Tabbed admin settings page under **Settings > ARMember WebHook**
 * Git Updater-compatible release assets published automatically from GitHub Actions
 
@@ -86,6 +88,8 @@ WebHookARM sends:
 
 Credential-like keys are removed recursively and payloads are capped at 256 KiB before being queued. Transient failures are retried after 1, 5, and 15 minutes. Queued data expires after one day. Sites with request-driven WP-Cron disabled must invoke `wp-cron.php` from a system scheduler.
 
+Redirects are followed only for Google Apps Script. Because Apps Script always answers 200, a reply body of `Request rejected` is treated as a permanent failure and `Retry later` as a temporary one.
+
 == Frequently Asked Questions ==
 
 = Does this work without ARMember? =
@@ -100,6 +104,10 @@ Yes. Any endpoint that accepts authenticated JSON `POST` requests can be used.
 
 No. URLs contain only a short-lived signature, timestamp, action, and delivery identifier. The shared secret is used to calculate the signature and is never transmitted.
 
+= Can I keep the secret out of the database? =
+
+Yes. Add `define('WEBHOOKARM_SECRET', 'your-secret');` to `wp-config.php`. It overrides any saved secret.
+
 = How do I get plugin updates from GitHub? =
 
 Install the Git Updater plugin: https://github.com/afragen/git-updater
@@ -109,6 +117,17 @@ Install the Git Updater plugin: https://github.com/afragen/git-updater
 See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 
 == Changelog ==
+
+= 2.1.0 =
+* Treat the Apps Script reply `Request rejected` as a failed delivery instead of a success. The updated sample script replies `Retry later` when its lock is busy or an unexpected service error occurs, so those cases are retried.
+* Store the delivery queue in non-autoloaded options instead of transients, so a persistent object cache cannot evict pending deliveries. Deliveries queued by 2.0.x are still sent.
+* Prevent overlapping cron runs from sending the same delivery twice.
+* Follow redirects only for Google Apps Script receivers.
+* Redact SSN, IBAN, API key, private key, card number, and security answer fields in addition to the existing credential fields.
+* Add a delivery status panel showing the latest outcome, delivered and failed totals, and the last permanent failure, plus a "Send test delivery" button and an option to remove the saved secret.
+* Add the WEBHOOKARM_SECRET constant, the bono_arm_webhook_redaction_pattern, bono_arm_webhook_request_args, bono_arm_webhook_effective_status, and bono_arm_webhook_spawn_cron filters, and the bono_arm_webhook_delivery_succeeded and bono_arm_webhook_delivery_failed actions.
+* Remove queued deliveries on deactivation, clean every site on multisite uninstall, and sweep expired deliveries daily.
+* Load settings screen CSS and JavaScript as enqueued assets, and avoid extra database queries on admin pages.
 
 = 2.0.1 =
 * Fixed release automation so the packaged zip is published automatically when a version tag is created.
@@ -146,6 +165,9 @@ See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 * Initial public release.
 
 == Upgrade Notice ==
+
+= 2.1.0 =
+Existing receivers keep working. Apps Script users should redeploy the updated sample so a busy lock is retried rather than dropped. Custom receivers that redirect must now answer the configured URL directly. More field names are redacted; check your receiver if it relied on any of them.
 
 = 2.0.1 =
 Maintenance release. Safe to apply directly; receivers already configured for 2.0.0 need no changes.

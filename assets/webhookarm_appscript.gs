@@ -7,6 +7,11 @@
  *
  * Recommended columns:
  * Timestamp | Delivery ID | User ID | User Login | User Email | Raw JSON Payload
+ *
+ * Apps Script cannot set an HTTP status code, so WebHookARM reads the reply body:
+ * - "Success" or "Already processed": delivered
+ * - "Retry later": temporary failure (busy lock, unexpected service error), WordPress retries
+ * - "Request rejected": authentication or configuration failure, WordPress stops retrying
  */
 
 const WEBHOOKARM_MAX_BODY_BYTES = 262144;
@@ -21,7 +26,11 @@ function doPost(e) {
     const cache = CacheService.getScriptCache();
     const cacheKey = 'delivery_' + request.deliveryId;
 
-    lock.waitLock(10000);
+    // Another delivery holding the lock is a temporary condition: ask
+    // WordPress to retry instead of rejecting, which would drop the update.
+    if (!lock.tryLock(10000)) {
+      return textResponse('Retry later');
+    }
     try {
       if (cache.get(cacheKey)) {
         return textResponse('Already processed');
@@ -36,7 +45,17 @@ function doPost(e) {
   } catch (error) {
     // Apps Script web apps do not allow ContentService callers to select an
     // HTTP status code. Keep public responses generic and avoid logging PII.
-    console.warn('WebHookARM request rejected: ' + safeErrorCategory(error));
+    const category = safeErrorCategory(error);
+
+    // Known categories are authentication or configuration problems that a
+    // retry cannot fix. Anything else, such as a Sheets service error during
+    // appendRow, may be temporary, so ask WordPress to retry.
+    if (category === 'internal_error') {
+      console.warn('WebHookARM request deferred: ' + category);
+      return textResponse('Retry later');
+    }
+
+    console.warn('WebHookARM request rejected: ' + category);
     return textResponse('Request rejected');
   }
 }
@@ -128,7 +147,7 @@ function createSafeRow(body, deliveryId) {
 
 function neutralizeFormula(value) {
   const text = String(value == null ? '' : value);
-  return /^[=+\-@]/.test(text) ? "'" + text : text;
+  return /^[=+\-@\t\r]/.test(text) ? "'" + text : text;
 }
 
 function constantTimeEqual(left, right) {

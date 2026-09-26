@@ -1,0 +1,248 @@
+/* WebHookARM settings screen. */
+
+.webhookarm-admin {
+    max-width: 1120px;
+    margin-top: 18px;
+}
+
+.webhookarm-hero {
+    margin: 0 0 16px;
+    border: 1px solid #c8ccd0;
+    background: #f6f7f7;
+    display: block;
+    max-width: 750px;
+    width: fit-content;
+}
+
+.webhookarm-hero-image {
+    display: block;
+    width: min(100%, 750px);
+    height: auto;
+}
+
+.webhookarm-headline {
+    margin: 8px 0 20px;
+}
+
+.webhookarm-headline h1 {
+    margin: 0 0 8px;
+    font-size: 42px;
+    line-height: 1.1;
+    color: #0f172a;
+    font-weight: 400;
+}
+
+.webhookarm-intro,
+.webhookarm-panel-header p,
+.webhookarm-note,
+.webhookarm-switch-row p,
+.webhookarm-field small {
+    margin: 0;
+    color: #475569;
+    font-size: 14px;
+    line-height: 1.65;
+}
+
+.webhookarm-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 16px 0 10px;
+}
+
+.webhookarm-meta a,
+.webhookarm-meta span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 14px;
+    background: #f6f7f7;
+    border: 1px solid #c3c4c7;
+    color: #0f172a;
+    text-decoration: none;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.webhookarm-meta a:hover {
+    border-color: #2271b1;
+    color: #2271b1;
+}
+
+.webhookarm-intro {
+    margin-bottom: 20px;
+    max-width: 76ch;
+}
+
+.webhookarm-intro-secondary {
+    margin-top: -8px;
+}
+
+.webhookarm-tabs {
+    margin: 24px 0 0;
+}
+
+.webhookarm-tabs .webhookarm-tab {
+    display: inline-block;
+    float: none;
+}
+
+.webhookarm-tabs .webhookarm-tab:focus {
+    box-shadow: 0 0 0 1px #2271b1;
+}
+
+.webhookarm-shell {
+    display: grid;
+    gap: 18px;
+    padding-top: 20px;
+}
+
+.webhookarm-panel {
+    display: grid;
+    gap: 18px;
+}
+
+.webhookarm-panel[hidden] {
+    display: none;
+}
+
+.webhookarm-panel-header h2,
+.webhookarm-switch-row h3,
+.webhookarm-card h3,
+.webhookarm-field span {
+    margin: 0 0 8px;
+    color: #0f172a;
+}
+
+.webhookarm-card h3 + .webhookarm-note,
+.webhookarm-card h3 + .webhookarm-steps {
+    margin-top: 0;
+}
+
+.webhookarm-card .webhookarm-note + .webhookarm-note {
+    margin-top: 10px;
+}
+
+.webhookarm-card {
+    padding: 22px;
+    border: 1px solid #c3c4c7;
+    background: #ffffff;
+}
+
+.webhookarm-card-accent {
+    border-left: 4px solid #72aee6;
+    background: #f6f7f7;
+}
+
+.webhookarm-switch-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 18px;
+    margin-bottom: 18px;
+}
+
+.webhookarm-toggle {
+    display: inline-flex;
+    gap: 10px;
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid #c3c4c7;
+    padding: 12px 14px;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.webhookarm-field-grid,
+.webhookarm-grid,
+.webhookarm-example-grid {
+    display: grid;
+    gap: 14px;
+}
+
+.webhookarm-field-grid,
+.webhookarm-grid-two,
+.webhookarm-example-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.webhookarm-grid-three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 18px;
+}
+
+.webhookarm-field {
+    display: grid;
+    gap: 8px;
+}
+
+.webhookarm-field input {
+    width: 100%;
+    max-width: none;
+}
+
+.webhookarm-code-card,
+.webhookarm-example {
+    display: grid;
+    gap: 8px;
+    padding: 14px;
+    border: 1px solid #dcdcde;
+    background: #ffffff;
+}
+
+.webhookarm-example .button {
+    width: fit-content;
+}
+
+.webhookarm-clear-secret {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 12px;
+    color: #475569;
+}
+
+.webhookarm-footer {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.webhookarm-steps {
+    margin: 0;
+    padding-left: 18px;
+    color: #1e293b;
+}
+
+.webhookarm-steps li + li {
+    margin-top: 8px;
+}
+
+.webhookarm-admin code,
+.webhookarm-admin pre {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.webhookarm-admin code {
+    padding: 2px 6px;
+}
+
+.webhookarm-admin pre {
+    padding: 12px;
+    overflow-x: auto;
+    margin: 18px 0;
+}
+
+@media (max-width: 960px) {
+    .webhookarm-field-grid,
+    .webhookarm-grid-two,
+    .webhookarm-grid-three,
+    .webhookarm-example-grid,
+    .webhookarm-switch-row {
+        grid-template-columns: 1fr;
+        display: grid;
+    }
+
+    .webhookarm-switch-row {
+        justify-content: stretch;
+    }
+}

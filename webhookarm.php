@@ -3,7 +3,7 @@
  * Plugin Name:       WebHookARM
  * Plugin URI:        https://github.com/renatobo/WebHookARM
  * Description:       Send ARMember profile updates to a secure JSON webhook for Google Apps Script, Make.com, or custom integrations.
- * Version:           2.0.1
+ * Version:           2.1.0
  * Requires at least: 7.0
  * Requires PHP:      8.0
  * Requires Plugins:  armember-membership
@@ -13,7 +13,6 @@
  * License:           GPLv2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       webhookarm
- * Domain Path:       /languages
  *
  * GitHub Plugin URI: https://github.com/renatobo/WebHookARM
  * GitHub Branch:     main
@@ -27,7 +26,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('BONO_ARM_WEBHOOK_VERSION', '2.0.1');
+define('BONO_ARM_WEBHOOK_VERSION', '2.1.0');
 define('BONO_ARM_WEBHOOK_OPTION_ENABLE', 'bono_arm_webhook_profileupdates_enable');
 define('BONO_ARM_WEBHOOK_OPTION_URL', 'bono_arm_webhook_url');
 define('BONO_ARM_WEBHOOK_OPTION_SECRET', 'bono_arm_webhook_secret');
@@ -35,29 +34,30 @@ define('BONO_ARM_WEBHOOK_OPTION_VERSION', 'bono_arm_webhook_installed_version');
 define('BONO_ARM_WEBHOOK_OPTION_UPGRADE_NOTICE', 'bono_arm_webhook_receiver_upgrade_notice');
 define('BONO_ARM_WEBHOOK_DELIVERY_HOOK', 'bono_arm_webhook_process_delivery');
 define('BONO_ARM_WEBHOOK_DELIVERY_PREFIX', 'bono_arm_webhook_delivery_');
+define('BONO_ARM_WEBHOOK_OPTION_LAST_DELIVERY', 'bono_arm_webhook_last_delivery');
+define('BONO_ARM_WEBHOOK_OPTION_DELIVERY_STATS', 'bono_arm_webhook_delivery_stats');
+define('BONO_ARM_WEBHOOK_LOCK_PREFIX', 'bono_arm_webhook_lock_');
+define('BONO_ARM_WEBHOOK_LOCK_TTL', 300);
+define('BONO_ARM_WEBHOOK_CLEANUP_HOOK', 'bono_arm_webhook_cleanup_deliveries');
 
 if (version_compare(PHP_VERSION, '8.0.0', '<')) {
     add_action('admin_notices', 'bono_arm_webhook_php_version_notice');
     return;
 }
 
-add_action('plugins_loaded', 'bono_arm_webhook_load_textdomain', 5);
+register_deactivation_hook(__FILE__, 'bono_arm_webhook_deactivate');
 add_action('plugins_loaded', 'bono_arm_webhook_bootstrap');
 add_action('admin_menu', 'bono_arm_webhook_add_settings_page');
 add_action('admin_init', 'bono_arm_webhook_handle_upgrade_notice_dismissal', 5);
 add_action('admin_init', 'bono_arm_webhook_maybe_flag_receiver_upgrade');
 add_action('admin_init', 'bono_arm_webhook_register_settings');
+add_action('admin_init', 'bono_arm_webhook_maybe_schedule_cleanup');
 add_action('admin_notices', 'bono_arm_webhook_receiver_upgrade_notice');
+add_action('admin_enqueue_scripts', 'bono_arm_webhook_enqueue_admin_assets');
+add_action('admin_post_bono_arm_webhook_test', 'bono_arm_webhook_handle_test_delivery');
 add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'bono_arm_webhook_add_plugin_action_links');
 
 require_once __DIR__ . '/includes/delivery.php';
-
-/**
- * Load plugin translations.
- */
-function bono_arm_webhook_load_textdomain() {
-    load_plugin_textdomain('webhookarm', false, dirname(plugin_basename(__FILE__)) . '/languages');
-}
 
 /**
  * Show an admin notice when PHP is too old for this plugin.
@@ -86,6 +86,30 @@ function bono_arm_webhook_bootstrap() {
     }
 
     add_action(BONO_ARM_WEBHOOK_DELIVERY_HOOK, 'bono_arm_webhook_process_delivery');
+    add_action(BONO_ARM_WEBHOOK_CLEANUP_HOOK, 'bono_arm_webhook_cleanup_expired_deliveries');
+}
+
+/**
+ * Schedule the daily sweep of expired deliveries if it is missing.
+ *
+ * Runs on admin_init because updates do not fire activation hooks.
+ */
+function bono_arm_webhook_maybe_schedule_cleanup() {
+    if (!wp_next_scheduled(BONO_ARM_WEBHOOK_CLEANUP_HOOK)) {
+        wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', BONO_ARM_WEBHOOK_CLEANUP_HOOK);
+    }
+}
+
+/**
+ * Stop queued deliveries and remove the profile data they hold.
+ *
+ * Without this, queued events fire with no handler once the plugin is inactive
+ * and their stored payloads linger. Settings are kept for reactivation.
+ */
+function bono_arm_webhook_deactivate() {
+    wp_unschedule_hook(BONO_ARM_WEBHOOK_DELIVERY_HOOK);
+    wp_unschedule_hook(BONO_ARM_WEBHOOK_CLEANUP_HOOK);
+    bono_arm_webhook_purge_queue();
 }
 
 /**
@@ -107,12 +131,38 @@ function bono_arm_webhook_get_webhook_url() {
 }
 
 /**
- * Return the saved shared secret.
+ * Return the shared secret, preferring a WEBHOOKARM_SECRET constant.
  *
  * @return string
  */
 function bono_arm_webhook_get_secret() {
+    $constant = bono_arm_webhook_secret_from_constant();
+
+    return '' !== $constant ? $constant : bono_arm_webhook_get_stored_secret();
+}
+
+/**
+ * Return the secret saved in the database, ignoring any constant.
+ *
+ * @return string
+ */
+function bono_arm_webhook_get_stored_secret() {
     return (string) get_option(BONO_ARM_WEBHOOK_OPTION_SECRET, '');
+}
+
+/**
+ * Return the secret defined as WEBHOOKARM_SECRET in wp-config.php, or ''.
+ *
+ * @return string
+ */
+function bono_arm_webhook_secret_from_constant() {
+    if (!defined('WEBHOOKARM_SECRET')) {
+        return '';
+    }
+
+    $value = constant('WEBHOOKARM_SECRET');
+
+    return is_string($value) ? trim($value) : '';
 }
 
 /**
@@ -158,18 +208,21 @@ function bono_arm_webhook_maybe_flag_receiver_upgrade() {
      * Emptiness of the URL and secret is the only default-immune signal that a
      * site was already delivering webhooks: both getters return '' for an absent
      * option regardless of any registered setting default. Testing other options
-     * for presence would report a configured site on every fresh install.
+     * for presence would report a configured site on every fresh install. The
+     * stored secret is used, not the WEBHOOKARM_SECRET constant, which a fresh
+     * install can define before it has ever delivered anything.
      */
     $was_configured = '' !== bono_arm_webhook_get_webhook_url()
-        || '' !== bono_arm_webhook_get_secret();
+        || '' !== bono_arm_webhook_get_stored_secret();
 
     $upgraded_from = bono_arm_webhook_upgrade_notice_version($stored, $was_configured);
 
     if ('' !== $upgraded_from) {
-        update_option(BONO_ARM_WEBHOOK_OPTION_UPGRADE_NOTICE, $upgraded_from, false);
+        update_option(BONO_ARM_WEBHOOK_OPTION_UPGRADE_NOTICE, $upgraded_from, true);
     }
 
-    update_option(BONO_ARM_WEBHOOK_OPTION_VERSION, BONO_ARM_WEBHOOK_VERSION, false);
+    // Autoloaded because both options are read on every admin request.
+    update_option(BONO_ARM_WEBHOOK_OPTION_VERSION, BONO_ARM_WEBHOOK_VERSION, true);
 }
 
 /**
@@ -186,7 +239,9 @@ function bono_arm_webhook_handle_upgrade_notice_dismissal() {
 
     check_admin_referer('bono_arm_webhook_dismiss_upgrade');
 
-    delete_option(BONO_ARM_WEBHOOK_OPTION_UPGRADE_NOTICE);
+    // Cleared rather than deleted: an absent option costs a query on every
+    // admin request, an autoloaded empty one does not.
+    update_option(BONO_ARM_WEBHOOK_OPTION_UPGRADE_NOTICE, '', true);
 
     $redirect = remove_query_arg(
         array('bono_arm_webhook_dismiss_upgrade', '_wpnonce'),
@@ -380,6 +435,16 @@ function bono_arm_webhook_sanitize_url($value) {
  * @return string
  */
 function bono_arm_webhook_sanitize_secret($value) {
+    // Fallbacks read the stored option directly so a WEBHOOKARM_SECRET constant
+    // is never copied into the database.
+    if ('' !== bono_arm_webhook_secret_from_constant()) {
+        return bono_arm_webhook_get_stored_secret();
+    }
+
+    if (bono_arm_webhook_secret_clear_requested()) {
+        return '';
+    }
+
     if (!is_string($value)) {
         return '';
     }
@@ -387,7 +452,7 @@ function bono_arm_webhook_sanitize_secret($value) {
     $secret = (string) preg_replace('/[\r\n\t]+/', '', trim($value));
 
     if ('' === $secret) {
-        return bono_arm_webhook_get_secret();
+        return bono_arm_webhook_get_stored_secret();
     }
 
     if (strlen($secret) < 16) {
@@ -397,10 +462,23 @@ function bono_arm_webhook_sanitize_secret($value) {
             __('Use a secret containing at least 16 characters.', 'webhookarm')
         );
 
-        return bono_arm_webhook_get_secret();
+        return bono_arm_webhook_get_stored_secret();
     }
 
     return $secret;
+}
+
+/**
+ * Whether the settings form asked to remove the saved secret.
+ *
+ * options.php has already verified the settings nonce before sanitizing.
+ *
+ * @return bool
+ */
+function bono_arm_webhook_secret_clear_requested() {
+    // phpcs:ignore WordPress.Security.NonceVerification.Missing
+    return isset($_POST['bono_arm_webhook_secret_clear'])
+        && '1' === sanitize_text_field(wp_unslash((string) $_POST['bono_arm_webhook_secret_clear']));
 }
 
 /**
@@ -416,6 +494,162 @@ function bono_arm_webhook_is_https_url($url) {
 }
 
 /**
+ * Load the settings screen assets on that screen only.
+ *
+ * @param string $hook_suffix Current admin page hook.
+ */
+function bono_arm_webhook_enqueue_admin_assets($hook_suffix) {
+    if ('settings_page_webhookarm' !== $hook_suffix) {
+        return;
+    }
+
+    wp_enqueue_style(
+        'webhookarm-admin',
+        plugins_url('assets/admin.css', __FILE__),
+        array(),
+        BONO_ARM_WEBHOOK_VERSION
+    );
+    wp_enqueue_script(
+        'webhookarm-admin',
+        plugins_url('assets/admin.js', __FILE__),
+        array(),
+        BONO_ARM_WEBHOOK_VERSION,
+        array('in_footer' => true)
+    );
+}
+
+/**
+ * Send a test delivery from the settings screen and report the result.
+ */
+function bono_arm_webhook_handle_test_delivery() {
+    if (!current_user_can('manage_options')) {
+        wp_die(esc_html__('Sorry, you are not allowed to send WebHookARM test deliveries.', 'webhookarm'), '', array('response' => 403));
+    }
+
+    check_admin_referer('bono_arm_webhook_test');
+
+    $status = bono_arm_webhook_send_test_delivery();
+
+    wp_safe_redirect(
+        add_query_arg(
+            array(
+                'page' => 'webhookarm',
+                'webhookarm_test' => $status,
+            ),
+            admin_url('options-general.php')
+        )
+    );
+    exit;
+}
+
+/**
+ * Render the result notice for a test delivery, if one was just sent.
+ */
+function bono_arm_webhook_render_test_notice() {
+    // Display-only: the value is an integer status set by our own redirect.
+    // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    if (!isset($_GET['webhookarm_test'])) {
+        return;
+    }
+
+    // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    $status = (int) sanitize_text_field(wp_unslash((string) $_GET['webhookarm_test']));
+
+    if ($status >= 200 && $status < 300) {
+        $class = 'notice-success';
+        /* translators: %d: HTTP status code. */
+        $message = sprintf(__('Test delivery accepted with HTTP %d. Confirm the test record arrived at the receiver.', 'webhookarm'), $status);
+    } elseif (-1 === $status) {
+        $class = 'notice-warning';
+        $message = __('Save a webhook URL and secret key before sending a test delivery.', 'webhookarm');
+    } elseif (0 === $status) {
+        $class = 'notice-error';
+        $message = __('Test delivery failed: the receiver could not be reached. Check the URL and that it is publicly reachable over HTTPS.', 'webhookarm');
+    } elseif (422 === $status) {
+        $class = 'notice-error';
+        $message = __('Test delivery rejected by the receiver. Check that both sides use the same secret and the receiver signs the delivery id, timestamp, and raw body.', 'webhookarm');
+    } else {
+        $class = 'notice-error';
+        /* translators: %d: HTTP status code. */
+        $message = sprintf(__('Test delivery failed with HTTP %d.', 'webhookarm'), $status);
+    }
+
+    printf(
+        '<div class="notice %1$s inline"><p>%2$s</p></div>',
+        esc_attr($class),
+        esc_html($message)
+    );
+}
+
+/**
+ * Render the most recent delivery outcome.
+ */
+function bono_arm_webhook_render_last_delivery() {
+    $last = get_option(BONO_ARM_WEBHOOK_OPTION_LAST_DELIVERY, array());
+
+    if (!is_array($last) || !isset($last['outcome'], $last['status'], $last['time'])) {
+        echo '<p class="webhookarm-note">' . esc_html__('No delivery has been processed yet.', 'webhookarm') . '</p>';
+        return;
+    }
+
+    $labels = array(
+        'succeeded' => __('Succeeded', 'webhookarm'),
+        'failed' => __('Failed permanently', 'webhookarm'),
+        'retrying' => __('Failed, retry scheduled', 'webhookarm'),
+    );
+    $outcome = isset($labels[$last['outcome']]) ? $labels[$last['outcome']] : (string) $last['outcome'];
+
+    printf(
+        '<p class="webhookarm-note">%s</p>',
+        esc_html(
+            sprintf(
+                /* translators: 1: Outcome. 2: HTTP status code. 3: Attempt number. 4: Relative time. */
+                __('%1$s: HTTP %2$d on attempt %3$d, %4$s ago.', 'webhookarm'),
+                $outcome,
+                (int) $last['status'],
+                isset($last['attempt']) ? (int) $last['attempt'] : 1,
+                human_time_diff((int) $last['time'])
+            )
+        )
+    );
+
+    $stats = get_option(BONO_ARM_WEBHOOK_OPTION_DELIVERY_STATS, array());
+
+    if (!is_array($stats) || !isset($stats['since'])) {
+        return;
+    }
+
+    printf(
+        '<p class="webhookarm-note">%s</p>',
+        esc_html(
+            sprintf(
+                /* translators: 1: Date counting started. 2: Successful deliveries. 3: Permanently failed deliveries. */
+                __('Since %1$s: %2$d delivered, %3$d failed permanently.', 'webhookarm'),
+                wp_date(get_option('date_format'), (int) $stats['since']),
+                isset($stats['succeeded']) ? (int) $stats['succeeded'] : 0,
+                isset($stats['failed']) ? (int) $stats['failed'] : 0
+            )
+        )
+    );
+
+    // Shown separately so a later success cannot hide it.
+    if (isset($stats['last_failure']['status'], $stats['last_failure']['time']) && is_array($stats['last_failure'])) {
+        printf(
+            '<p class="webhookarm-note"><strong>%s</strong></p>',
+            esc_html(
+                sprintf(
+                    /* translators: 1: HTTP status code. 2: Attempt number. 3: Relative time. */
+                    __('Last permanent failure: HTTP %1$d on attempt %2$d, %3$s ago.', 'webhookarm'),
+                    (int) $stats['last_failure']['status'],
+                    isset($stats['last_failure']['attempt']) ? (int) $stats['last_failure']['attempt'] : 1,
+                    human_time_diff((int) $stats['last_failure']['time'])
+                )
+            )
+        );
+    }
+}
+
+/**
  * Render settings page.
  */
 function bono_arm_webhook_settings_page() {
@@ -426,6 +660,8 @@ function bono_arm_webhook_settings_page() {
     $webhook_enabled = bono_arm_webhook_is_enabled();
     $webhook_url = bono_arm_webhook_get_webhook_url();
     $secret_key = bono_arm_webhook_get_secret();
+    $secret_from_constant = '' !== bono_arm_webhook_secret_from_constant();
+    $has_stored_secret = '' !== bono_arm_webhook_get_stored_secret();
     $project_url = 'https://github.com/renatobo/WebHookARM';
     $author_url = 'https://github.com/renatobo';
     $git_updater_url = 'https://github.com/afragen/git-updater';
@@ -485,6 +721,7 @@ function bono_arm_webhook_settings_page() {
             </div>
 
             <?php settings_errors('bono_arm_webhook'); ?>
+            <?php bono_arm_webhook_render_test_notice(); ?>
 
             <?php if ($webhook_enabled && ('' === $webhook_url || '' === $secret_key)) : ?>
                 <div class="notice notice-warning inline">
@@ -499,7 +736,7 @@ function bono_arm_webhook_settings_page() {
                 <div class="notice notice-warning inline">
                     <p>
                         <strong><?php esc_html_e('Non-HTTPS webhook URL configured.', 'webhookarm'); ?></strong>
-                        <?php esc_html_e('HTTP endpoints can be useful for local testing, but production webhook traffic should use HTTPS so the shared secret and profile data are not sent in clear text.', 'webhookarm'); ?>
+                        <?php esc_html_e('HTTP endpoints can be useful for local testing, but production webhook traffic should use HTTPS so profile data and request signatures are not sent in clear text.', 'webhookarm'); ?>
                     </p>
                 </div>
             <?php endif; ?>
@@ -587,28 +824,43 @@ function bono_arm_webhook_settings_page() {
                                     value="<?php echo esc_attr($webhook_url); ?>"
                                     placeholder="<?php echo esc_attr__('https://hooks.example.com/profile-sync', 'webhookarm'); ?>"
                                 />
-                                <small><?php esc_html_e('Use an HTTPS endpoint in production. HTTP can still be useful for local testing.', 'webhookarm'); ?></small>
+                                <small><?php echo wp_kses(__('HTTPS is required. Local HTTP testing needs the <code>bono_arm_webhook_allow_insecure_url</code> filter.', 'webhookarm'), array('code' => array())); ?></small>
                             </label>
                             <label class="webhookarm-field">
                                 <span><?php esc_html_e('Secret key', 'webhookarm'); ?></span>
-                                <input
-                                    type="password"
-                                    class="regular-text code"
-                                    name="<?php echo esc_attr(BONO_ARM_WEBHOOK_OPTION_SECRET); ?>"
-                                    value=""
-                                    autocomplete="new-password"
-                                    placeholder="<?php echo esc_attr('' !== $secret_key ? __('Secret configured; leave blank to keep it', 'webhookarm') : __('Enter at least 16 characters', 'webhookarm')); ?>"
-                                />
-                                <small>
-                                    <?php
-                                    echo wp_kses(
-                                        __('Used to sign each request with HMAC-SHA256. The secret itself is never transmitted.', 'webhookarm'),
-                                        array('code' => array())
-                                    );
-                                    ?>
-                                </small>
+                                <?php if ($secret_from_constant) : ?>
+                                    <input
+                                        type="password"
+                                        class="regular-text code"
+                                        value=""
+                                        disabled
+                                        placeholder="<?php echo esc_attr__('Defined in wp-config.php', 'webhookarm'); ?>"
+                                    />
+                                    <small>
+                                        <?php echo wp_kses(__('The <code>WEBHOOKARM_SECRET</code> constant overrides any saved secret. Remove it from <code>wp-config.php</code> to manage the secret here.', 'webhookarm'), array('code' => array())); ?>
+                                    </small>
+                                <?php else : ?>
+                                    <input
+                                        type="password"
+                                        class="regular-text code"
+                                        name="<?php echo esc_attr(BONO_ARM_WEBHOOK_OPTION_SECRET); ?>"
+                                        value=""
+                                        autocomplete="new-password"
+                                        placeholder="<?php echo esc_attr($has_stored_secret ? __('Secret configured; leave blank to keep it', 'webhookarm') : __('Enter at least 16 characters', 'webhookarm')); ?>"
+                                    />
+                                    <small>
+                                        <?php echo wp_kses(__('Used to sign each request with HMAC-SHA256. The secret itself is never transmitted. You can also define it as <code>WEBHOOKARM_SECRET</code> in <code>wp-config.php</code>.', 'webhookarm'), array('code' => array())); ?>
+                                    </small>
+                                <?php endif; ?>
                             </label>
                         </div>
+
+                        <?php if (!$secret_from_constant && $has_stored_secret) : ?>
+                            <label class="webhookarm-clear-secret">
+                                <input type="checkbox" name="bono_arm_webhook_secret_clear" value="1" />
+                                <?php esc_html_e('Remove the saved secret. Delivery stops until a new secret is saved.', 'webhookarm'); ?>
+                            </label>
+                        <?php endif; ?>
 
                         <div class="webhookarm-grid webhookarm-grid-three">
                             <div class="webhookarm-code-card">
@@ -636,14 +888,30 @@ function bono_arm_webhook_settings_page() {
                             <div class="webhookarm-example">
                                 <strong><?php esc_html_e('Example request URL', 'webhookarm'); ?></strong>
                                 <code id="webhookarm-example-request"><?php echo esc_html($example_request_url); ?></code>
-                                <button class="button button-secondary button-small" onclick="webhookarmCopy('webhookarm-example-request'); return false;"><?php esc_html_e('Copy', 'webhookarm'); ?></button>
+                                <button type="button" class="button button-secondary button-small" data-copy-target="webhookarm-example-request"><?php esc_html_e('Copy', 'webhookarm'); ?></button>
                             </div>
                             <div class="webhookarm-example">
                                 <strong><?php esc_html_e('Bundled Apps Script sample', 'webhookarm'); ?></strong>
                                 <code id="webhookarm-apps-script-url"><?php echo esc_html($sample_script_url); ?></code>
-                                <button class="button button-secondary button-small" onclick="webhookarmCopy('webhookarm-apps-script-url'); return false;"><?php esc_html_e('Copy', 'webhookarm'); ?></button>
+                                <button type="button" class="button button-secondary button-small" data-copy-target="webhookarm-apps-script-url"><?php esc_html_e('Copy', 'webhookarm'); ?></button>
                             </div>
                         </div>
+                    </div>
+
+                    <div class="webhookarm-card">
+                        <h3><?php esc_html_e('Delivery status', 'webhookarm'); ?></h3>
+                        <?php bono_arm_webhook_render_last_delivery(); ?>
+                        <p class="webhookarm-note">
+                            <?php esc_html_e('Google Apps Script answers 200 even when it rejects a request. WebHookARM recognises the bundled sample\'s rejection reply, but always confirm records arrive at the receiver itself.', 'webhookarm'); ?>
+                        </p>
+                        <p>
+                            <button type="submit" form="webhookarm-test-form" class="button button-secondary">
+                                <?php esc_html_e('Send test delivery', 'webhookarm'); ?>
+                            </button>
+                        </p>
+                        <p class="webhookarm-note">
+                            <?php echo wp_kses(__('Sends a signed request using the <strong>saved</strong> settings, with <code>user_id</code> 0 and <code>webhookarm_test</code> set to true. The bundled Apps Script writes it as a row.', 'webhookarm'), array('code' => array(), 'strong' => array())); ?>
+                        </p>
                     </div>
                 </section>
 
@@ -752,14 +1020,16 @@ function bono_arm_webhook_settings_page() {
                             <div class="webhookarm-code-card">
                                 <strong><?php esc_html_e('Headers', 'webhookarm'); ?></strong>
                                 <span><code>Content-Type: application/json</code></span>
+                                <span><code>X-WebhookARM-Delivery: uuid</code></span>
                                 <span><code>X-WebhookARM-Signature: sha256=hmac</code></span>
                                 <span><code>X-WebhookARM-Timestamp: unix-time</code></span>
                             </div>
                             <div class="webhookarm-code-card">
                                 <strong><?php esc_html_e('Query parameters', 'webhookarm'); ?></strong>
+                                <span><code>action=profile_update</code></span>
+                                <span><code>delivery=uuid</code></span>
                                 <span><code>signature=hmac</code></span>
                                 <span><code>timestamp=unix-time</code></span>
-                                <span><code>action=profile_update</code></span>
                             </div>
                         </div>
 
@@ -767,6 +1037,9 @@ function bono_arm_webhook_settings_page() {
 
                         <p class="webhookarm-note">
                             <?php esc_html_e('ARMember field keys vary by site and form configuration. The plugin forwards them as-is and only guarantees the appended WordPress identity fields listed above.', 'webhookarm'); ?>
+                        </p>
+                        <p class="webhookarm-note">
+                            <?php echo wp_kses(__('Developers can narrow the payload to an allowlist with the <code>bono_arm_webhook_payload</code> filter, or change which keys are redacted with <code>bono_arm_webhook_redaction_pattern</code>. Delivery outcomes fire <code>bono_arm_webhook_delivery_succeeded</code> and <code>bono_arm_webhook_delivery_failed</code>.', 'webhookarm'), array('code' => array())); ?>
                         </p>
                     </div>
                 </section>
@@ -869,300 +1142,12 @@ function bono_arm_webhook_settings_page() {
                     <?php submit_button(__('Save settings', 'webhookarm'), 'primary', 'submit', false); ?>
                 </div>
             </form>
+
+            <form id="webhookarm-test-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                <input type="hidden" name="action" value="bono_arm_webhook_test" />
+                <?php wp_nonce_field('bono_arm_webhook_test'); ?>
+            </form>
         </div>
-
-        <style>
-            .webhookarm-admin {
-                max-width: 1120px;
-                margin-top: 18px;
-            }
-
-            .webhookarm-hero {
-                margin: 0 0 16px;
-                border: 1px solid #c8ccd0;
-                background: #f6f7f7;
-                display: block;
-                max-width: 750px;
-                width: fit-content;
-            }
-
-            .webhookarm-hero-image {
-                display: block;
-                width: min(100%, 750px);
-                height: auto;
-            }
-
-            .webhookarm-headline {
-                margin: 8px 0 20px;
-            }
-
-            .webhookarm-headline h1 {
-                margin: 0 0 8px;
-                font-size: 42px;
-                line-height: 1.1;
-                color: #0f172a;
-                font-weight: 400;
-            }
-
-            .webhookarm-intro,
-            .webhookarm-panel-header p,
-            .webhookarm-note,
-            .webhookarm-switch-row p,
-            .webhookarm-field small {
-                margin: 0;
-                color: #475569;
-                font-size: 14px;
-                line-height: 1.65;
-            }
-
-            .webhookarm-meta {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 10px;
-                margin: 16px 0 10px;
-            }
-
-            .webhookarm-meta a,
-            .webhookarm-meta span {
-                display: inline-flex;
-                align-items: center;
-                min-height: 36px;
-                padding: 0 14px;
-                background: #f6f7f7;
-                border: 1px solid #c3c4c7;
-                color: #0f172a;
-                text-decoration: none;
-                box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
-            }
-
-            .webhookarm-meta a:hover {
-                border-color: #2271b1;
-                color: #2271b1;
-            }
-
-            .webhookarm-intro {
-                margin-bottom: 20px;
-                max-width: 76ch;
-            }
-
-            .webhookarm-intro-secondary {
-                margin-top: -8px;
-            }
-
-            .webhookarm-tabs {
-                margin: 24px 0 0;
-            }
-
-            .webhookarm-tabs .webhookarm-tab {
-                display: inline-block;
-                float: none;
-            }
-
-            .webhookarm-tabs .webhookarm-tab:focus {
-                box-shadow: 0 0 0 1px #2271b1;
-            }
-
-            .webhookarm-shell {
-                display: grid;
-                gap: 18px;
-                padding-top: 20px;
-            }
-
-            .webhookarm-panel {
-                display: grid;
-                gap: 18px;
-            }
-
-            .webhookarm-panel[hidden] {
-                display: none;
-            }
-
-            .webhookarm-panel-header h2,
-            .webhookarm-switch-row h3,
-            .webhookarm-card h3,
-            .webhookarm-field span {
-                margin: 0 0 8px;
-                color: #0f172a;
-            }
-
-            .webhookarm-card h3 + .webhookarm-note,
-            .webhookarm-card h3 + .webhookarm-steps {
-                margin-top: 0;
-            }
-
-            .webhookarm-card .webhookarm-note + .webhookarm-note {
-                margin-top: 10px;
-            }
-
-            .webhookarm-card {
-                padding: 22px;
-                border: 1px solid #c3c4c7;
-                background: #ffffff;
-            }
-
-            .webhookarm-card-accent {
-                border-left: 4px solid #72aee6;
-                background: #f6f7f7;
-            }
-
-            .webhookarm-switch-row {
-                display: flex;
-                justify-content: space-between;
-                align-items: flex-start;
-                gap: 18px;
-                margin-bottom: 18px;
-            }
-
-            .webhookarm-toggle {
-                display: inline-flex;
-                gap: 10px;
-                align-items: center;
-                background: #ffffff;
-                border: 1px solid #c3c4c7;
-                padding: 12px 14px;
-                font-weight: 600;
-                color: #0f172a;
-            }
-
-            .webhookarm-field-grid,
-            .webhookarm-grid,
-            .webhookarm-example-grid {
-                display: grid;
-                gap: 14px;
-            }
-
-            .webhookarm-field-grid,
-            .webhookarm-grid-two,
-            .webhookarm-example-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-
-            .webhookarm-grid-three {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-                margin-top: 18px;
-            }
-
-            .webhookarm-field {
-                display: grid;
-                gap: 8px;
-            }
-
-            .webhookarm-field input {
-                width: 100%;
-                max-width: none;
-            }
-
-            .webhookarm-code-card,
-            .webhookarm-example {
-                display: grid;
-                gap: 8px;
-                padding: 14px;
-                border: 1px solid #dcdcde;
-                background: #ffffff;
-            }
-
-            .webhookarm-example .button {
-                width: fit-content;
-            }
-
-            .webhookarm-footer {
-                display: flex;
-                justify-content: flex-start;
-            }
-
-            .webhookarm-steps {
-                margin: 0;
-                padding-left: 18px;
-                color: #1e293b;
-            }
-
-            .webhookarm-steps li + li {
-                margin-top: 8px;
-            }
-
-            code,
-            pre {
-                background: #f1f1f1;
-                border-radius: 4px;
-            }
-
-            code {
-                padding: 2px 6px;
-            }
-
-            pre {
-                padding: 12px;
-                overflow-x: auto;
-                margin: 18px 0;
-            }
-
-            @media (max-width: 960px) {
-                .webhookarm-field-grid,
-                .webhookarm-grid-two,
-                .webhookarm-grid-three,
-                .webhookarm-example-grid,
-                .webhookarm-switch-row {
-                    grid-template-columns: 1fr;
-                    display: grid;
-                }
-
-                .webhookarm-switch-row {
-                    justify-content: stretch;
-                }
-            }
-        </style>
-        <script>
-        function webhookarmCopy(elementId) {
-            const source = document.getElementById(elementId);
-
-            if (!source || !navigator.clipboard) {
-                return;
-            }
-
-            navigator.clipboard.writeText(source.textContent);
-        }
-
-        document.addEventListener('DOMContentLoaded', function () {
-            const tabs = document.querySelectorAll('.webhookarm-tab');
-            const panels = document.querySelectorAll('.webhookarm-panel');
-
-            function activateTab(targetPanel, updateHash) {
-                let hasMatch = false;
-
-                tabs.forEach(function (item) {
-                    const isTarget = item.getAttribute('data-panel') === targetPanel;
-                    item.classList.toggle('nav-tab-active', isTarget);
-                    item.setAttribute('aria-selected', isTarget ? 'true' : 'false');
-                    hasMatch = hasMatch || isTarget;
-                });
-
-                panels.forEach(function (panel) {
-                    const isTarget = panel.getAttribute('data-panel') === targetPanel;
-                    panel.classList.toggle('is-active', isTarget);
-                    panel.hidden = !isTarget;
-                });
-
-                if (hasMatch && updateHash) {
-                    window.location.hash = targetPanel;
-                }
-            }
-
-            tabs.forEach(function (tab) {
-                tab.addEventListener('click', function (event) {
-                    event.preventDefault();
-                    activateTab(tab.getAttribute('data-panel'), true);
-                });
-            });
-
-            const initialPanel = window.location.hash ? window.location.hash.replace('#', '') : 'webhook';
-            activateTab(initialPanel, false);
-
-            window.addEventListener('hashchange', function () {
-                const hashPanel = window.location.hash ? window.location.hash.replace('#', '') : 'webhook';
-                activateTab(hashPanel, false);
-            });
-        });
-        </script>
     </div>
     <?php
 }
