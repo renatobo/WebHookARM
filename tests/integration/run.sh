@@ -8,6 +8,7 @@
 # receivers. Needs php (mysqli, curl, openssl), wp-cli, curl, jq, openssl.
 #
 # Environment: WP_VERSION (default latest), DB_HOST, DB_NAME, DB_USER, DB_PASS.
+# The work directory is deleted after a passing run unless KEEP_WORK is set.
 # Outbound DNS must work: WordPress resolves script.google.com before cURL is
 # redirected to the local mocks.
 
@@ -35,10 +36,15 @@ SERVER_PIDS=()
 
 # php -S with workers forks children, so stop those as well as the parent.
 cleanup() {
-    for pid in "${SERVER_PIDS[@]}"; do
+    # The ${arr[@]+...} form avoids "unbound variable" under set -u on bash < 4.4.
+    for pid in ${SERVER_PIDS[@]+"${SERVER_PIDS[@]}"}; do
         pkill -P "$pid" 2>/dev/null || true
         kill "$pid" 2>/dev/null || true
     done
+
+    if [ "${FAILURES:-1}" -eq 0 ] && [ -z "${KEEP_WORK:-}" ]; then
+        rm -rf "$WORK"
+    fi
 }
 trap cleanup EXIT
 
@@ -300,6 +306,9 @@ assert_eq "$(count_events bono_arm_webhook_process_delivery)" "1" "the retry is 
 $WP cron event run bono_arm_webhook_cleanup_deliveries >/dev/null 2>&1 || true
 assert_eq "$(count_queued delivery)" "1" "the daily cleanup keeps a delivery awaiting retry"
 assert_eq "$(stats_state)" "kept" "the daily cleanup keeps the delivery stats"
+
+# Drop the pending retry so it can't fire during the next steps if the run is slow.
+$WP cron event unschedule bono_arm_webhook_process_delivery >/dev/null 2>&1 || true
 
 # --- Upgrade from 2.0.x: a delivery queued as a transient is still sent -----
 

@@ -60,7 +60,8 @@ Versions before 2.1 queued in transients; `bono_arm_webhook_get_delivery()` migr
   fails the run. Outbound requests reach the mocks through the must-use plugin
   `test-environment.php`; never ship it.
 - `bono_arm_webhook_delivery_stats` shares the queue prefix `bono_arm_webhook_delivery_`.
-  Anything that sweeps the queue by LIKE must filter with `bono_arm_webhook_is_queue_key()`.
+  Anything that sweeps the queue by LIKE must filter with `bono_arm_webhook_is_queue_key()`,
+  except `uninstall.php`, which deletes everything, stats included, and can't call plugin code.
 - `tests/delivery-test.php` also stubs `register_deactivation_hook`, options, cron, and
   HTTP. A new WordPress call in the delivery path needs a stub there.
 - `uninstall.php` runs without the plugin's constants loaded. Hardcode key strings there.
