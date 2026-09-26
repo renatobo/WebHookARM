@@ -168,7 +168,14 @@ Release packaging keeps only WordPress runtime files:
 - Removes all other `.md` files
 - Removes `.sh` scripts that are not used by WordPress at runtime
 
-Latest planned release: `2.1.3`
+Latest planned release: `2.2.0`
+
+- Keeps permanently failed deliveries for 7 days and resends them on request.
+- Optional "Send only these fields" allowlist.
+- Warns when ARMember premium is not active.
+- Schedules the daily cleanup from the queue path too.
+
+Previous release: `2.1.3`
 
 - Stops the daily cleanup and deactivation from erasing the Delivery status totals and last failure.
 

@@ -4,7 +4,7 @@ Tags: armember, webhook, google sheets, apps script, make, automation, profile u
 Requires at least: 7.0
 Tested up to: 7.1.2
 Requires PHP: 8.0
-Stable tag: 2.1.3
+Stable tag: 2.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -126,6 +126,14 @@ See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 
 == Changelog ==
 
+= 2.2.0 =
+* Permanently failed deliveries are now kept for 7 days instead of discarded. The Delivery status card shows how many are kept, and "Resend failed deliveries" sends them again under their original delivery ids once the receiver is fixed. Deactivating or deleting the plugin removes them.
+* New optional "Send only these fields" setting: list ARMember field keys to limit what is sent. `user_id`, `user_login`, and `user_email` are always included, and credential-like fields are still removed.
+* The settings page warns when ARMember premium is not active. Only premium sends profile updates; ARMember Lite alone never does.
+* The daily cleanup is also scheduled when a delivery is queued, so sites that rarely open wp-admin still clean up.
+* Settings code moved into `includes/`; no behaviour change.
+* New WordPress integration test in CI covering WordPress 7.0 and the latest release.
+
 = 2.1.3 =
 * Fixed the delivery totals and last failure on the Delivery status card being erased by the daily cleanup and on deactivation. The cleanup matched the totals option by its name prefix; it now only touches queued deliveries.
 
@@ -182,6 +190,9 @@ See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 * Initial public release.
 
 == Upgrade Notice ==
+
+= 2.2.0 =
+Failed deliveries can now be resent after fixing the receiver, and you can limit which fields are sent. No receiver changes needed.
 
 = 2.1.3 =
 The Delivery status totals and last failure no longer reset every day.
