@@ -48,6 +48,11 @@ Versions before 2.1 queued in transients; `bono_arm_webhook_get_delivery()` migr
   the plugin only catches it when the body is exactly the sample's `Request rejected`.
   A modified script replying anything else is recorded as successful. Never conclude
   delivery works by looking at the WordPress side alone.
+- Never let WordPress follow the Apps Script redirect. Apps Script answers the POST with a
+  302 to `script.googleusercontent.com`; WordPress turns a 302 into a GET but Requests
+  re-sends the JSON body, and Google answers a GET with a body with 400. The POST goes
+  out with `redirection => 0` and `bono_arm_webhook_fetch_apps_script_reply()` fetches
+  the reply with a bodyless `wp_safe_remote_get()`.
 - `tests/delivery-test.php` also stubs `register_deactivation_hook`, options, cron, and
   HTTP. A new WordPress call in the delivery path needs a stub there.
 - `uninstall.php` runs without the plugin's constants loaded. Hardcode key strings there.

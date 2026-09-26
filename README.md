@@ -97,7 +97,7 @@ Credential-like keys (passwords, tokens, nonces, authentication secrets, payment
 
 Delivery uses WP-Cron with retry delays of 1, 5, and 15 minutes for transient failures. Sites that disable WordPress's request-driven cron must invoke `wp-cron.php` from a system scheduler.
 
-Redirects are followed only for Google Apps Script (`script.google.com`), which needs them to return its reply. Other receivers must answer the configured URL directly; a redirect is treated as a failed attempt.
+Redirects are not followed; receivers must answer the configured URL directly, and a redirect is treated as a failed attempt. Google Apps Script is handled specially: it answers every POST with a 302 to a `script.googleusercontent.com` URL holding its reply, so for `script.google.com` URLs the plugin fetches that reply with a separate, bodyless GET. (WordPress cannot follow that redirect itself: it switches a 302 to GET but still sends the JSON body, and Google answers that with 400.)
 
 ### Receiver replies
 
@@ -163,7 +163,11 @@ Release packaging keeps only WordPress runtime files:
 - Removes all other `.md` files
 - Removes `.sh` scripts that are not used by WordPress at runtime
 
-Latest planned release: `2.1.0`
+Latest planned release: `2.1.1`
+
+- Fixes Google Apps Script deliveries being recorded as failed with HTTP 400 by fetching the Apps Script reply with a plain GET instead of letting WordPress follow the redirect.
+
+Previous release: `2.1.0`
 
 - Recognises Apps Script rejection replies instead of recording them as delivered, and lets an updated sample script ask for a retry.
 - Moves the delivery queue out of transients so a persistent object cache cannot evict pending deliveries.

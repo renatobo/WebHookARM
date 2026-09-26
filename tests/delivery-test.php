@@ -114,8 +114,17 @@ function wp_parse_url($url, $component = -1) {
 }
 
 function wp_safe_remote_post($url, $args) {
-    $GLOBALS['test_requests'][] = array($url, $args);
+    $GLOBALS['test_requests'][] = array($url, $args + array('method' => 'POST'));
     return array_shift($GLOBALS['test_responses']);
+}
+
+function wp_safe_remote_get($url, $args = array()) {
+    $GLOBALS['test_requests'][] = array($url, $args + array('method' => 'GET'));
+    return array_shift($GLOBALS['test_responses']);
+}
+
+function wp_remote_retrieve_header($response, $header) {
+    return isset($response['headers'][$header]) ? $response['headers'][$header] : '';
 }
 
 function wp_remote_retrieve_response_code($response) {
@@ -157,8 +166,8 @@ function assert_same($expected, $actual, $message) {
     }
 }
 
-function http_response($code, $body = '') {
-    return array('response' => array('code' => $code), 'body' => $body);
+function http_response($code, $body = '', $headers = array()) {
+    return array('response' => array('code' => $code), 'body' => $body, 'headers' => $headers);
 }
 
 /**
@@ -189,13 +198,14 @@ function run_attempt($response, $attempt = 0) {
  * Return the first entry a stub recorded, read indirectly so static analysis
  * does not treat the globals as permanently empty.
  *
- * @param string $name Global holding the recorded calls.
+ * @param string $name  Global holding the recorded calls.
+ * @param int    $index Position of the entry.
  * @return array
  */
-function first_recorded($name) {
+function first_recorded($name, $index = 0) {
     $entries = $GLOBALS[$name];
 
-    return isset($entries[0]) && is_array($entries[0]) ? $entries[0] : array();
+    return isset($entries[$index]) && is_array($entries[$index]) ? $entries[$index] : array();
 }
 
 function stored_delivery() {
@@ -357,7 +367,41 @@ run_attempt(http_response(200));
 list($url, $args) = first_recorded('test_requests');
 assert_same(0, $args['redirection'], 'A non-Apps Script receiver was allowed to redirect.');
 assert_same('sha256=' . bono_arm_webhook_sign(TEST_DELIVERY_ID, $args['headers']['X-WebhookARM-Timestamp'], '{"a":1}', 'secret-of-sixteen'), $args['headers']['X-WebhookARM-Signature'], 'The request was not signed.');
-assert_same(3, bono_arm_webhook_redirect_limit('https://script.google.com/macros/s/abc/exec'), 'Apps Script redirects were not allowed.');
+
+// Apps Script: POST without redirects, then fetch the reply with a bodyless GET.
+// WordPress would follow the 302 as a GET that still carries the JSON body,
+// which Google answers with 400.
+define('TEST_ECHO_URL', 'https://script.googleusercontent.com/macros/echo?user_content_key=abc');
+$GLOBALS['test_filters']['bono_arm_webhook_request_args'] = array('redirection' => 3);
+run_attempt(http_response(200));
+$GLOBALS['test_options'][BONO_ARM_WEBHOOK_OPTION_URL] = 'https://script.google.com/macros/s/abc/exec';
+$GLOBALS['test_options'][BONO_ARM_WEBHOOK_DELIVERY_PREFIX . TEST_DELIVERY_ID] = array('attempt' => 0, 'body' => '{"a":1}', 'created_at' => time());
+$GLOBALS['test_requests'] = array();
+$GLOBALS['test_responses'] = array(http_response(302, '', array('location' => TEST_ECHO_URL)), http_response(200, 'Success'));
+bono_arm_webhook_process_delivery(TEST_DELIVERY_ID);
+unset($GLOBALS['test_filters']['bono_arm_webhook_request_args']);
+list($post_url, $post_args) = first_recorded('test_requests');
+list($get_url, $get_args) = first_recorded('test_requests', 1);
+assert_same(0, $post_args['redirection'], 'The Apps Script POST was allowed to follow redirects.');
+assert_same('GET', $get_args['method'], 'The Apps Script reply was not fetched with GET.');
+assert_same(TEST_ECHO_URL, $get_url, 'The Apps Script reply was not fetched from the redirect location.');
+assert_same(false, array_key_exists('body', $get_args), 'The Apps Script reply fetch carried a body, which Google rejects with 400.');
+assert_same(null, stored_delivery(), 'An Apps Script Success reply behind the redirect was not treated as delivered.');
+
+foreach (array('Request rejected' => 422, 'Retry later' => 503) as $reply => $expected) {
+    $GLOBALS['test_responses'] = array(http_response(302, '', array('location' => TEST_ECHO_URL)), http_response(200, $reply));
+    $response = bono_arm_webhook_send_request('{"a":1}', TEST_DELIVERY_ID);
+    assert_same($expected, bono_arm_webhook_effective_status($response), "The Apps Script reply '$reply' behind the redirect was not mapped to $expected.");
+}
+
+$GLOBALS['test_requests'] = array();
+$GLOBALS['test_responses'] = array(http_response(302, '', array('location' => 'https://evil.example.com/steal')));
+$response = bono_arm_webhook_send_request('{"a":1}', TEST_DELIVERY_ID);
+assert_same(1, count($GLOBALS['test_requests']), 'An Apps Script redirect to a foreign host was followed.');
+assert_same(302, bono_arm_webhook_effective_status($response), 'An unfollowed redirect did not keep its own status.');
+
+$GLOBALS['test_responses'] = array(http_response(302, '', array('location' => TEST_ECHO_URL)), new WP_Error('http_request_failed'));
+assert_same(0, bono_arm_webhook_effective_status(bono_arm_webhook_send_request('{"a":1}', TEST_DELIVERY_ID)), 'A failed reply fetch was not treated as a transport error.');
 
 $GLOBALS['test_filters']['bono_arm_webhook_request_args'] = array('timeout' => 30, 'headers' => array('X-Extra' => '1', 'X-WebhookARM-Signature' => 'forged'), 'body' => 'tampered');
 run_attempt(http_response(200));
