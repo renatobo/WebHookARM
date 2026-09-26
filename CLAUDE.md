@@ -25,14 +25,18 @@ Keep `README.md` in sync with behavior changes too; it is the GitHub-facing copy
 
 ## Architecture
 
-- `webhookarm.php` — bootstrap, option definitions, settings UI, upgrade notice
+- `webhookarm.php` — bootstrap, option definitions, settings UI, upgrade notice, test delivery
+- `assets/admin.css`, `assets/admin.js` — settings screen assets, enqueued on that screen only
 - `includes/delivery.php` — payload build and redaction, WP-Cron queue, HMAC signing, send and retry
 - `assets/webhookarm_appscript.gs` — sample Apps Script receiver, must stay in sync with the signing code
-- `uninstall.php` — option, transient, and cron cleanup
+- `uninstall.php` — option, queue, legacy transient, and cron cleanup on every site
 
-Delivery is asynchronous. `arm_update_profile_external` stores the body in a transient
-and schedules one cron event; `bono_arm_webhook_process_delivery` sends it and retries
-at 60/300/900 seconds, giving up after 4 attempts or a non-retryable 4xx.
+Delivery is asynchronous. `arm_update_profile_external` stores the body in a
+non-autoloaded `bono_arm_webhook_delivery_<uuid>` option and schedules one cron event;
+`bono_arm_webhook_process_delivery` sends it and retries at 60/300/900 seconds, giving
+up after 4 attempts or a non-retryable 4xx. A 2xx whose body is `Request rejected`
+counts as a 4xx and `Retry later` as a 503, because Apps Script cannot set a status.
+Versions before 2.1 queued in transients; `bono_arm_webhook_get_delivery()` migrates them.
 
 ## Gotchas
 
@@ -40,9 +44,12 @@ at 60/300/900 seconds, giving up after 4 attempts or a non-retryable 4xx.
 - The signed string lives in two places, `bono_arm_webhook_sign()` and the `.gs`
   receiver. Changing one breaks the other. The `.gs` runs on Google's side, so
   updating the plugin does not update anyone's deployed script.
-- Apps Script cannot set an HTTP status code. A rejected delivery still answers 200
-  and the plugin records it as successful. Never conclude delivery works by looking
-  at the WordPress side alone.
+- Apps Script cannot set an HTTP status code. A rejected delivery still answers 200;
+  the plugin only catches it when the body is exactly the sample's `Request rejected`.
+  A modified script replying anything else is recorded as successful. Never conclude
+  delivery works by looking at the WordPress side alone.
+- `tests/delivery-test.php` also stubs `register_deactivation_hook`, options, cron, and
+  HTTP. A new WordPress call in the delivery path needs a stub there.
 - `uninstall.php` runs without the plugin's constants loaded. Hardcode key strings there.
 - `tests/delivery-test.php` loads `webhookarm.php` behind hand-written stubs. Adding a
   WordPress call at file load time breaks the test run until a stub is added.

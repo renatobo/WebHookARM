@@ -47,7 +47,9 @@
 
 - Keep the layout WordPress-admin friendly, not app-like.
 - Prefer flat cards, subtle borders, and native admin spacing.
-- Keep the form controls on the `Webhook` tab.
+- Keep the form controls on the `Webhook` tab, followed by the `Delivery status` card with the last outcome and the `Send test delivery` button.
+- The test button submits a separate form outside the settings form (via the `form` attribute), so it never saves settings.
+- Styles and scripts live in `assets/admin.css` and `assets/admin.js`, enqueued only on the settings screen. Scope any generic selector under `.webhookarm-admin`.
 - Keep `Payload`, `Apps Script`, `Make.com`, and `Updates` as separate tabs.
 
 ## Maintenance

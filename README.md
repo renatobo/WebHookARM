@@ -15,6 +15,8 @@ Send ARMember profile updates to a secure JSON webhook for Google Apps Script, M
 - Signs requests with timestamped HMAC-SHA256 authentication
 - Queues delivery outside the profile request and retries transient failures
 - Redacts credential-like fields and caps serialized payloads at 256 KiB
+- Shows the latest delivery outcome, delivered and failed totals, and the last permanent failure, and sends a signed test delivery from the settings screen
+- Accepts the shared secret from a `WEBHOOKARM_SECRET` constant in `wp-config.php`
 - Configurable from a tabbed WordPress admin screen: **Settings -> ARMember WebHook**
 - Git Updater-compatible release assets published automatically from GitHub Actions
 
@@ -91,13 +93,46 @@ WebHookARM sends a `POST` request with:
 
 ARMember form fields are included in the same payload when available.
 
-Credential-like keys (passwords, tokens, nonces, authentication secrets, and payment-card fields) are removed recursively before queueing. Developers can further restrict or reshape the payload with the `bono_arm_webhook_payload` filter. Queued payloads expire after one day; successful and permanently failed deliveries are removed immediately.
+Credential-like keys (passwords, tokens, nonces, authentication secrets, payment-card fields, SSNs, IBANs, API and private keys, and security answers) are removed recursively before queueing. Queued payloads expire after one day; successful and permanently failed deliveries are removed immediately.
 
 Delivery uses WP-Cron with retry delays of 1, 5, and 15 minutes for transient failures. Sites that disable WordPress's request-driven cron must invoke `wp-cron.php` from a system scheduler.
 
+Redirects are followed only for Google Apps Script (`script.google.com`), which needs them to return its reply. Other receivers must answer the configured URL directly; a redirect is treated as a failed attempt.
+
+### Receiver replies
+
+Google Apps Script cannot set an HTTP status code, so a `2xx` reply is also checked for these bodies:
+
+- `Request rejected`: permanent failure, not retried
+- `Retry later`: temporary failure, retried. The bundled sample sends it when its lock is busy or an unexpected service error occurs.
+
+Other receivers should use status codes: `2xx` for success, `408`/`429`/`5xx` to retry, any other `4xx` to stop.
+
+## Developer Hooks
+
+| Hook | Type | Purpose |
+|---|---|---|
+| `bono_arm_webhook_payload` | filter | Reshape or allowlist the payload |
+| `bono_arm_webhook_redaction_pattern` | filter | Change the regex matched against payload keys for redaction |
+| `bono_arm_webhook_max_payload_bytes` | filter | Change the 256 KiB payload cap |
+| `bono_arm_webhook_request_args` | filter | Adjust timeout, redirects, or add headers (signing headers and body are re-applied) |
+| `bono_arm_webhook_effective_status` | filter | Map a receiver reply to the status the retry logic uses |
+| `bono_arm_webhook_allow_insecure_url` | filter | Allow an HTTP URL for local testing |
+| `bono_arm_webhook_spawn_cron` | filter | Spawn WP-Cron right after queueing (off by default) |
+| `bono_arm_webhook_delivery_succeeded` | action | Delivery id, status, attempt |
+| `bono_arm_webhook_delivery_failed` | action | Delivery id, status, attempts, after the delivery is abandoned |
+
+Example allowlist:
+
+```php
+add_filter('bono_arm_webhook_payload', function ($payload) {
+    return array_intersect_key($payload, array_flip(array('first_name', 'last_name', 'user_id', 'user_login', 'user_email')));
+});
+```
+
 ## Security
 
-- Use a strong secret key.
+- Use a strong secret key. To keep it out of the database, define it in `wp-config.php` as `define('WEBHOOKARM_SECRET', '...');`.
 - Always validate the secret at the receiving endpoint.
 - Use HTTPS for the webhook URL.
 - Avoid logging sensitive data in production.
@@ -128,15 +163,20 @@ Release packaging keeps only WordPress runtime files:
 - Removes all other `.md` files
 - Removes `.sh` scripts that are not used by WordPress at runtime
 
-Latest planned release: `2.0.1`
+Latest planned release: `2.1.0`
 
-- Maintenance release fixing release automation, uninstall cleanup under nested include scopes, and static analysis errors. Webhook delivery is unchanged from 2.0.0.
+- Recognises Apps Script rejection replies instead of recording them as delivered, and lets an updated sample script ask for a retry.
+- Moves the delivery queue out of transients so a persistent object cache cannot evict pending deliveries.
+- Adds a delivery status panel, a test delivery button, delivery hooks, and a `WEBHOOKARM_SECRET` constant.
+- Stops following redirects for receivers other than Google Apps Script.
+- Cleans every site on multisite uninstall, and removes queued data on deactivation.
 
 ## Troubleshooting
 
 - No requests arriving: confirm plugin toggle is enabled and ARMember profile update event is firing.
 - 401/403 at endpoint: verify secret key and validation logic.
 - Invalid payload format: ensure receiver accepts `application/json`.
+- Check **Delivery status** on the Webhook tab, or use **Send test delivery**.
 - Debugging: enable `WP_DEBUG` to inspect webhook send logs.
 
 ## FAQ

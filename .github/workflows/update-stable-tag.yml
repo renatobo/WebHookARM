@@ -28,14 +28,23 @@ jobs:
 
       - name: Determine version
         id: extract_version
+        env:
+          # Passed through env, never interpolated into the script, so the
+          # dispatch input cannot inject shell.
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
           set -e
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version }}"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$INPUT_VERSION"
           else
-            VERSION=$(grep -E '^Stable tag:' readme.txt | awk '{print $3}')
+            VERSION=$(grep -E '^Stable tag:' readme.txt | awk '{print $3}' | tr -d '\r')
           fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Refusing to tag invalid version: $VERSION"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Check if tag already exists
         id: check_tag
