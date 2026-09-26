@@ -2,9 +2,9 @@
 Contributors: renatobonomini
 Tags: armember, webhook, google sheets, apps script, make, automation, profile update
 Requires at least: 7.0
-Tested up to: 7.0.2
+Tested up to: 7.1.2
 Requires PHP: 8.0
-Stable tag: 2.1.1
+Stable tag: 2.1.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -118,6 +118,9 @@ See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 
 == Changelog ==
 
+= 2.1.2 =
+* Declared compatibility with WordPress 7.1.2. No code changes.
+
 = 2.1.1 =
 * Fixed Google Apps Script deliveries being recorded as permanent failures with HTTP 400. WordPress followed the Apps Script redirect as a GET that still carried the JSON body, which Google rejects. The plugin now sends the POST without following redirects and fetches the reply with a plain GET, so `Success`, `Retry later`, and `Request rejected` are read correctly. Rows were still being written to the sheet.
 
@@ -168,6 +171,9 @@ See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 * Initial public release.
 
 == Upgrade Notice ==
+
+= 2.1.2 =
+Compatibility metadata only: tested up to WordPress 7.1.2. No behaviour changes.
 
 = 2.1.1 =
 Recommended for Google Apps Script users. Fixes deliveries being shown as failed with HTTP 400 even though the row was written, and lets `Retry later` replies take effect. No receiver changes needed.

@@ -3,7 +3,7 @@
 [![WordPress](https://img.shields.io/badge/WordPress-Plugin-21759B?logo=wordpress&logoColor=white)](https://wordpress.org/)
 [![ARMember](https://img.shields.io/badge/ARMember-Required-ff6f00)](https://www.armemberplugin.com/)
 [![PHP](https://img.shields.io/badge/PHP-%3E%3D%208.0-777bb4?logo=php&logoColor=white)](https://www.php.net/)
-[![WP Tested](https://img.shields.io/badge/WP%20Tested-7.0.2-21759B)](https://wordpress.org/)
+[![WP Tested](https://img.shields.io/badge/WP%20Tested-7.1.2-21759B)](https://wordpress.org/)
 [![License: GPL v2 or later](https://img.shields.io/badge/License-GPL%20v2%20or%20later-blue.svg)](https://www.gnu.org/licenses/gpl-2.0.html)
 
 Send ARMember profile updates to a secure JSON webhook for Google Apps Script, Make.com, or custom integrations.
@@ -163,7 +163,11 @@ Release packaging keeps only WordPress runtime files:
 - Removes all other `.md` files
 - Removes `.sh` scripts that are not used by WordPress at runtime
 
-Latest planned release: `2.1.1`
+Latest planned release: `2.1.2`
+
+- Declares compatibility with WordPress 7.1.2. No code changes.
+
+Previous release: `2.1.1`
 
 - Fixes Google Apps Script deliveries being recorded as failed with HTTP 400 by fetching the Apps Script reply with a plain GET instead of letting WordPress follow the redirect.
 
