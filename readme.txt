@@ -4,7 +4,7 @@ Tags: armember, webhook, google sheets, apps script, make, automation, profile u
 Requires at least: 7.0
 Tested up to: 7.1.2
 Requires PHP: 8.0
-Stable tag: 2.1.2
+Stable tag: 2.1.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -118,6 +118,9 @@ See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 
 == Changelog ==
 
+= 2.1.3 =
+* Fixed the delivery totals and last failure on the Delivery status card being erased by the daily cleanup and on deactivation. The cleanup matched the totals option by its name prefix; it now only touches queued deliveries.
+
 = 2.1.2 =
 * Declared compatibility with WordPress 7.1.2. No code changes.
 
@@ -171,6 +174,9 @@ See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 * Initial public release.
 
 == Upgrade Notice ==
+
+= 2.1.3 =
+The Delivery status totals and last failure no longer reset every day.
 
 = 2.1.2 =
 Compatibility metadata only: tested up to WordPress 7.1.2. No behaviour changes.

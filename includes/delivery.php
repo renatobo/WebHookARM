@@ -589,6 +589,10 @@ function bono_arm_webhook_cleanup_expired_deliveries() {
     );
 
     foreach ((array) $delivery_names as $option_name) {
+        if (!bono_arm_webhook_is_queue_key($option_name, BONO_ARM_WEBHOOK_DELIVERY_PREFIX)) {
+            continue;
+        }
+
         $delivery = get_option($option_name);
 
         if (!is_array($delivery) || !isset($delivery['created_at']) || (int) $delivery['created_at'] < time() - DAY_IN_SECONDS) {
@@ -604,10 +608,28 @@ function bono_arm_webhook_cleanup_expired_deliveries() {
     );
 
     foreach ((array) $lock_names as $option_name) {
+        if (!bono_arm_webhook_is_queue_key($option_name, BONO_ARM_WEBHOOK_LOCK_PREFIX)) {
+            continue;
+        }
+
         if ((int) get_option($option_name, 0) < time() - BONO_ARM_WEBHOOK_LOCK_TTL) {
             delete_option($option_name);
         }
     }
+}
+
+/**
+ * Whether an option name is a queue row: the prefix followed by a delivery UUID.
+ *
+ * The LIKE prefix alone also matches bono_arm_webhook_delivery_stats, which
+ * must survive cleanup and deactivation.
+ *
+ * @param string $option_name Option name.
+ * @param string $prefix      Queue prefix.
+ * @return bool
+ */
+function bono_arm_webhook_is_queue_key($option_name, $prefix) {
+    return 0 === strpos($option_name, $prefix) && wp_is_uuid(substr($option_name, strlen($prefix)));
 }
 
 /**
@@ -625,7 +647,9 @@ function bono_arm_webhook_purge_queue() {
         );
 
         foreach ((array) $names as $option_name) {
-            delete_option($option_name);
+            if (bono_arm_webhook_is_queue_key($option_name, $prefix)) {
+                delete_option($option_name);
+            }
         }
     }
 
