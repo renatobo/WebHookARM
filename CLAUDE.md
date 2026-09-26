@@ -8,6 +8,7 @@ Requires PHP 8.0+, WordPress 7.0+. No Composer, no build step for the PHP itself
 ```bash
 find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l
 php tests/delivery-test.php   # no WordPress needed; stubs the WP functions it uses
+bash tests/integration/run.sh # real WordPress; needs an empty MySQL DB, wp-cli, jq (see the script header)
 ./build.sh                    # writes dist/WebHookARM-<version>.zip
 
 # Psalm gates merges but the project has no Composer manifest. Install it
@@ -53,6 +54,14 @@ Versions before 2.1 queued in transients; `bono_arm_webhook_get_delivery()` migr
   re-sends the JSON body, and Google answers a GET with a body with 400. The POST goes
   out with `redirection => 0` and `bono_arm_webhook_fetch_apps_script_reply()` fetches
   the reply with a bodyless `wp_safe_remote_get()`.
+- `tests/integration/run.sh` (CI job `Integration`) installs real WordPress, saves settings
+  through `options.php`, and delivers through WP-Cron to local mocks. `tls-echo.php` answers a
+  GET with a body with 400, like Google, so letting WordPress follow the Apps Script redirect
+  fails the run. Outbound requests reach the mocks through the must-use plugin
+  `test-environment.php`; never ship it.
+- `bono_arm_webhook_delivery_stats` shares the queue prefix `bono_arm_webhook_delivery_`.
+  Anything that sweeps the queue by LIKE must filter with `bono_arm_webhook_is_queue_key()`,
+  except `uninstall.php`, which deletes everything, stats included, and can't call plugin code.
 - `tests/delivery-test.php` also stubs `register_deactivation_hook`, options, cron, and
   HTTP. A new WordPress call in the delivery path needs a stub there.
 - `uninstall.php` runs without the plugin's constants loaded. Hardcode key strings there.
