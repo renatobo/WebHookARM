@@ -3,11 +3,11 @@
  * Plugin Name:       WebHookARM
  * Plugin URI:        https://github.com/renatobo/WebHookARM
  * Description:       Send ARMember profile updates to a secure JSON webhook for Google Apps Script, Make.com, or custom integrations.
- * Version:           2.1.1
+ * Version:           2.1.2
  * Requires at least: 7.0
  * Requires PHP:      8.0
  * Requires Plugins:  armember-membership
- * Tested up to:      7.0.2
+ * Tested up to:      7.1.2
  * Author:            Renato Bonomini
  * Author URI:        https://github.com/renatobo
  * License:           GPLv2 or later
@@ -26,7 +26,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('BONO_ARM_WEBHOOK_VERSION', '2.1.1');
+define('BONO_ARM_WEBHOOK_VERSION', '2.1.2');
 define('BONO_ARM_WEBHOOK_OPTION_ENABLE', 'bono_arm_webhook_profileupdates_enable');
 define('BONO_ARM_WEBHOOK_OPTION_URL', 'bono_arm_webhook_url');
 define('BONO_ARM_WEBHOOK_OPTION_SECRET', 'bono_arm_webhook_secret');
