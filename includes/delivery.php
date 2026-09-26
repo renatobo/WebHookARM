@@ -88,6 +88,13 @@ function bono_arm_webhook_queue_profile_update($user_id, $form_data) {
 function bono_arm_webhook_build_payload($user_id, $form_data) {
     $user = get_userdata($user_id);
     $payload = is_array($form_data) ? bono_arm_webhook_redact_payload($form_data) : array();
+    $allowlist = bono_arm_webhook_get_field_allowlist();
+
+    // Top-level keys only. The identity fields below are always added.
+    if (array() !== $allowlist) {
+        $payload = array_intersect_key($payload, array_flip($allowlist));
+    }
+
     $payload['user_id'] = $user_id;
     $payload['user_login'] = $user ? (string) $user->user_login : '';
     $payload['user_email'] = $user ? (string) $user->user_email : '';
@@ -95,7 +102,7 @@ function bono_arm_webhook_build_payload($user_id, $form_data) {
     /**
      * Filter the complete outbound profile-update payload.
      *
-     * Return an allowlisted subset here to send only specific fields.
+     * Runs after redaction and the field allowlist setting.
      *
      * @param array<string, mixed> $payload Outbound payload after credential redaction.
      * @param int                  $user_id WordPress user ID.

@@ -528,6 +528,25 @@ $GLOBALS['test_options'] = array();
 bono_arm_webhook_maybe_flag_receiver_upgrade();
 assert_same(false, get_option(BONO_ARM_WEBHOOK_OPTION_UPGRADE_NOTICE), 'A fresh install using WEBHOOKARM_SECRET was flagged as an upgrade.');
 
+// Field allowlist.
+$GLOBALS['test_settings_errors'] = array();
+assert_same("first_name\nlast_name\naddress[city]", bono_arm_webhook_sanitize_field_allowlist(" first_name, last_name\r\nbad key!\n\nfirst_name\naddress[city]"), 'The allowlist was not normalized to unique valid keys.');
+assert_same(array('bono_arm_webhook_invalid_field'), $GLOBALS['test_settings_errors'], 'An invalid allowlist key did not report a settings error.');
+assert_same('', bono_arm_webhook_sanitize_field_allowlist(null), 'A non-string allowlist was not cleared.');
+
+$GLOBALS['test_options'] = array(BONO_ARM_WEBHOOK_OPTION_FIELD_ALLOWLIST => "first_name\nnested");
+$payload = bono_arm_webhook_build_payload(42, array('first_name' => 'Jane', 'last_name' => 'Doe', 'user_pass' => 'x', 'nested' => array('city' => 'LA', 'api_key' => 'k')));
+assert_same(array('first_name', 'nested', 'user_id', 'user_login', 'user_email'), array_keys($payload), 'The allowlist did not keep exactly the listed fields plus the identity fields.');
+assert_same(array('city' => 'LA'), $payload['nested'], 'Redaction did not run before the allowlist.');
+
+$GLOBALS['test_options'] = array(BONO_ARM_WEBHOOK_OPTION_FIELD_ALLOWLIST => "user_pass");
+$payload = bono_arm_webhook_build_payload(42, array('user_pass' => 'x', 'first_name' => 'Jane'));
+assert_same(array('user_id', 'user_login', 'user_email'), array_keys($payload), 'Allowlisting a credential field bypassed redaction.');
+
+$GLOBALS['test_options'] = array();
+$payload = bono_arm_webhook_build_payload(42, array('first_name' => 'Jane', 'last_name' => 'Doe'));
+assert_same(array('first_name', 'last_name', 'user_id', 'user_login', 'user_email'), array_keys($payload), 'An empty allowlist did not send every field.');
+
 // Premium ARMember detection: only premium fires arm_update_profile_external.
 assert_same(false, bono_arm_webhook_premium_armember_active(), 'Premium ARMember was reported active without it.');
 define('MEMBERSHIP_DIR_NAME', 'armember');

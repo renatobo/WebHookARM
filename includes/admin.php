@@ -158,6 +158,16 @@ function bono_arm_webhook_register_settings() {
 
     register_setting(
         'bono_arm_webhook',
+        BONO_ARM_WEBHOOK_OPTION_FIELD_ALLOWLIST,
+        array(
+            'type' => 'string',
+            'sanitize_callback' => 'bono_arm_webhook_sanitize_field_allowlist',
+            'default' => '',
+        )
+    );
+
+    register_setting(
+        'bono_arm_webhook',
         BONO_ARM_WEBHOOK_OPTION_SECRET,
         array(
             'type' => 'string',
@@ -214,6 +224,41 @@ function bono_arm_webhook_sanitize_url($value) {
     }
 
     return $sanitized;
+}
+
+/**
+ * Normalize the field allowlist to unique keys, one per line.
+ *
+ * Accepts keys separated by new lines or commas. Keys may contain letters,
+ * digits, and _ - . [ ]; anything else is dropped.
+ *
+ * @param mixed $value Submitted option value.
+ * @return string
+ */
+function bono_arm_webhook_sanitize_field_allowlist($value) {
+    if (!is_string($value)) {
+        return '';
+    }
+
+    $keys = preg_split('/[\r\n,]+/', $value);
+    $keys = array_map('trim', is_array($keys) ? $keys : array());
+    $valid = array_filter(
+        $keys,
+        static function ($key) {
+            return 1 === preg_match('/^[A-Za-z0-9_.\[\]-]+$/', $key);
+        }
+    );
+
+    if (count($valid) !== count(array_filter($keys, 'strlen'))) {
+        add_settings_error(
+            'bono_arm_webhook',
+            'bono_arm_webhook_invalid_field',
+            __('Some field names were ignored because they contain characters other than letters, digits, and _ - . [ ]', 'webhookarm'),
+            'warning'
+        );
+    }
+
+    return implode("\n", array_values(array_unique($valid)));
 }
 
 /**
@@ -451,6 +496,7 @@ function bono_arm_webhook_settings_page() {
     $secret_from_constant = '' !== bono_arm_webhook_secret_from_constant();
     $has_stored_secret = '' !== bono_arm_webhook_get_stored_secret();
     $premium_active = bono_arm_webhook_premium_armember_active();
+    $field_allowlist = implode("\n", bono_arm_webhook_get_field_allowlist());
     $project_url = 'https://github.com/renatobo/WebHookARM';
     $author_url = 'https://github.com/renatobo';
     $git_updater_url = 'https://github.com/afragen/git-updater';

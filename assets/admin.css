@@ -193,6 +193,10 @@
     width: fit-content;
 }
 
+.webhookarm-field-allowlist {
+    margin-top: 18px;
+}
+
 .webhookarm-clear-secret {
     display: inline-flex;
     gap: 8px;

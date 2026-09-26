@@ -17,6 +17,7 @@ Send ARMember profile updates to a secure JSON webhook for Google Apps Script, M
 - Redacts credential-like fields and caps serialized payloads at 256 KiB
 - Shows the latest delivery outcome, delivered and failed totals, and the last permanent failure, and sends a signed test delivery from the settings screen
 - Accepts the shared secret from a `WEBHOOKARM_SECRET` constant in `wp-config.php`
+- Optional field allowlist: send only the ARMember fields you list
 - Configurable from a tabbed WordPress admin screen: **Settings -> ARMember WebHook**
 - Git Updater-compatible release assets published automatically from GitHub Actions
 
@@ -122,7 +123,9 @@ Other receivers should use status codes: `2xx` for success, `408`/`429`/`5xx` to
 | `bono_arm_webhook_delivery_succeeded` | action | Delivery id, status, attempt |
 | `bono_arm_webhook_delivery_failed` | action | Delivery id, status, attempts, after the delivery is abandoned |
 
-Example allowlist:
+To send only specific fields without code, list their keys under **Send only these fields** on the Webhook tab, one per line. `user_id`, `user_login`, and `user_email` are always sent, and only top-level keys are matched.
+
+Example allowlist in code:
 
 ```php
 add_filter('bono_arm_webhook_payload', function ($payload) {

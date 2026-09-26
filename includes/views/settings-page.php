@@ -10,6 +10,7 @@
  * @var bool   $secret_from_constant
  * @var bool   $has_stored_secret
  * @var bool   $premium_active
+ * @var string $field_allowlist
  * @var string $project_url
  * @var string $author_url
  * @var string $git_updater_url
@@ -216,6 +217,19 @@ if (!defined('ABSPATH')) {
                             </label>
                         <?php endif; ?>
 
+                        <label class="webhookarm-field webhookarm-field-allowlist">
+                            <span><?php esc_html_e('Send only these fields (optional)', 'webhookarm'); ?></span>
+                            <textarea
+                                class="large-text code"
+                                rows="4"
+                                name="<?php echo esc_attr(BONO_ARM_WEBHOOK_OPTION_FIELD_ALLOWLIST); ?>"
+                                placeholder="<?php echo esc_attr("first_name\nlast_name\nphone"); ?>"
+                            ><?php echo esc_textarea($field_allowlist); ?></textarea>
+                            <small>
+                                <?php echo wp_kses(__('One ARMember field key per line. Leave empty to send every field except credential-like ones. <code>user_id</code>, <code>user_login</code>, and <code>user_email</code> are always sent. Only top-level keys are matched.', 'webhookarm'), array('code' => array())); ?>
+                            </small>
+                        </label>
+
                         <div class="webhookarm-grid webhookarm-grid-three">
                             <div class="webhookarm-code-card">
                                 <strong><?php esc_html_e('Method', 'webhookarm'); ?></strong>
@@ -396,7 +410,7 @@ if (!defined('ABSPATH')) {
                             <?php esc_html_e('ARMember field keys vary by site and form configuration. The plugin forwards them as-is and only guarantees the appended WordPress identity fields listed above.', 'webhookarm'); ?>
                         </p>
                         <p class="webhookarm-note">
-                            <?php echo wp_kses(__('Developers can narrow the payload to an allowlist with the <code>bono_arm_webhook_payload</code> filter, or change which keys are redacted with <code>bono_arm_webhook_redaction_pattern</code>. Delivery outcomes fire <code>bono_arm_webhook_delivery_succeeded</code> and <code>bono_arm_webhook_delivery_failed</code>.', 'webhookarm'), array('code' => array())); ?>
+                            <?php echo wp_kses(__('To send only specific fields, list them under <strong>Send only these fields</strong> on the Webhook tab. Developers can reshape the payload further with the <code>bono_arm_webhook_payload</code> filter, or change which keys are redacted with <code>bono_arm_webhook_redaction_pattern</code>. Delivery outcomes fire <code>bono_arm_webhook_delivery_succeeded</code> and <code>bono_arm_webhook_delivery_failed</code>.', 'webhookarm'), array('code' => array(), 'strong' => array())); ?>
                         </p>
                     </div>
                 </section>

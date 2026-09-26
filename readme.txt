@@ -104,6 +104,10 @@ Yes. Any endpoint that accepts authenticated JSON `POST` requests can be used.
 
 No. URLs contain only a short-lived signature, timestamp, action, and delivery identifier. The shared secret is used to calculate the signature and is never transmitted.
 
+= Can I send only some fields? =
+
+Yes. List the ARMember field keys under **Send only these fields** on the Webhook tab, one per line. `user_id`, `user_login`, and `user_email` are always sent. Leave it empty to send every field except credential-like ones.
+
 = Can I keep the secret out of the database? =
 
 Yes. Add `define('WEBHOOKARM_SECRET', 'your-secret');` to `wp-config.php`. It overrides any saved secret.

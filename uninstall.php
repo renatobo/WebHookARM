@@ -22,6 +22,7 @@ $bono_arm_webhook_cleanup = static function () {
         'bono_arm_webhook_profileupdates_enable',
         'bono_arm_webhook_url',
         'bono_arm_webhook_secret',
+        'bono_arm_webhook_field_allowlist',
         'bono_arm_webhook_installed_version',
         'bono_arm_webhook_receiver_upgrade_notice',
         'bono_arm_webhook_last_delivery',

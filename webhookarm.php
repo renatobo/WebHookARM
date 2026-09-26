@@ -31,6 +31,7 @@ define('BONO_ARM_WEBHOOK_FILE', __FILE__);
 define('BONO_ARM_WEBHOOK_OPTION_ENABLE', 'bono_arm_webhook_profileupdates_enable');
 define('BONO_ARM_WEBHOOK_OPTION_URL', 'bono_arm_webhook_url');
 define('BONO_ARM_WEBHOOK_OPTION_SECRET', 'bono_arm_webhook_secret');
+define('BONO_ARM_WEBHOOK_OPTION_FIELD_ALLOWLIST', 'bono_arm_webhook_field_allowlist');
 define('BONO_ARM_WEBHOOK_OPTION_VERSION', 'bono_arm_webhook_installed_version');
 define('BONO_ARM_WEBHOOK_OPTION_UPGRADE_NOTICE', 'bono_arm_webhook_receiver_upgrade_notice');
 define('BONO_ARM_WEBHOOK_DELIVERY_HOOK', 'bono_arm_webhook_process_delivery');
@@ -144,6 +145,17 @@ function bono_arm_webhook_is_enabled() {
  */
 function bono_arm_webhook_get_webhook_url() {
     return (string) get_option(BONO_ARM_WEBHOOK_OPTION_URL, '');
+}
+
+/**
+ * Return the payload field allowlist; an empty list means send every field.
+ *
+ * @return array<int, string>
+ */
+function bono_arm_webhook_get_field_allowlist() {
+    $saved = (string) get_option(BONO_ARM_WEBHOOK_OPTION_FIELD_ALLOWLIST, '');
+
+    return '' === $saved ? array() : explode("\n", $saved);
 }
 
 /**
