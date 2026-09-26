@@ -9,6 +9,7 @@
  * @var string $secret_key
  * @var bool   $secret_from_constant
  * @var bool   $has_stored_secret
+ * @var bool   $premium_active
  * @var string $project_url
  * @var string $author_url
  * @var string $git_updater_url
@@ -81,6 +82,15 @@ if (!defined('ABSPATH')) {
                     <p>
                         <strong><?php esc_html_e('Non-HTTPS webhook URL configured.', 'webhookarm'); ?></strong>
                         <?php esc_html_e('HTTP endpoints can be useful for local testing, but production webhook traffic should use HTTPS so profile data and request signatures are not sent in clear text.', 'webhookarm'); ?>
+                    </p>
+                </div>
+            <?php endif; ?>
+
+            <?php if (!$premium_active) : ?>
+                <div class="notice notice-warning inline">
+                    <p>
+                        <strong><?php esc_html_e('ARMember premium is not active.', 'webhookarm'); ?></strong>
+                        <?php esc_html_e('Only ARMember premium sends profile updates to WebHookARM. With ARMember Lite alone, no profile update is ever delivered, although the settings and Send test delivery still work.', 'webhookarm'); ?>
                     </p>
                 </div>
             <?php endif; ?>
@@ -244,6 +254,9 @@ if (!defined('ABSPATH')) {
 
                     <div class="webhookarm-card">
                         <h3><?php esc_html_e('Delivery status', 'webhookarm'); ?></h3>
+                        <?php if (!$premium_active) : ?>
+                            <p class="webhookarm-note"><strong><?php esc_html_e('No profile updates will be queued: ARMember premium is not active.', 'webhookarm'); ?></strong></p>
+                        <?php endif; ?>
                         <?php bono_arm_webhook_render_last_delivery(); ?>
                         <p class="webhookarm-note">
                             <?php esc_html_e('Google Apps Script answers 200 even when it rejects a request. WebHookARM recognises the bundled sample\'s rejection reply, but always confirm records arrive at the receiver itself.', 'webhookarm'); ?>

@@ -24,7 +24,7 @@ Send ARMember profile updates to a secure JSON webhook for Google Apps Script, M
 
 - WordPress 7.0+
 - PHP 8.0+
-- ARMember plugin installed and active
+- ARMember premium installed and active. It runs on top of the free ARMember Lite (`armember-membership`), which is also required. Lite alone never sends profile updates, and the settings page warns when premium is missing.
 - A webhook endpoint URL (Google Apps Script, Make.com, or custom API)
 
 ## Quick Start
@@ -195,7 +195,7 @@ Previous release: `2.1.0`
 
 ### Does this work without ARMember?
 
-No. WebHookARM is triggered by ARMember profile update hooks.
+No. WebHookARM is triggered by ARMember's `arm_update_profile_external` event, which only ARMember premium fires, when a logged-in member saves their profile on the frontend. ARMember Lite alone never fires it, and admin edits, member imports, and bulk actions don't either.
 
 ### Can I send to something other than Google Sheets?
 

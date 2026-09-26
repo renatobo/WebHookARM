@@ -94,7 +94,7 @@ Redirects are not followed. Google Apps Script answers every POST with a redirec
 
 = Does this work without ARMember? =
 
-No. WebHookARM is triggered by ARMember's `arm_update_profile_external` event.
+No. WebHookARM is triggered by ARMember's `arm_update_profile_external` event, which only ARMember premium fires, when a logged-in member saves their profile on the frontend. ARMember Lite (`armember-membership`) is required because premium runs on top of it, but Lite alone never fires the event, and the settings page warns when premium is missing. Admin edits, member imports, and bulk actions don't fire it either.
 
 = Can I use this without Google Sheets? =
 

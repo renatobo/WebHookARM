@@ -450,6 +450,7 @@ function bono_arm_webhook_settings_page() {
     $secret_key = bono_arm_webhook_get_secret();
     $secret_from_constant = '' !== bono_arm_webhook_secret_from_constant();
     $has_stored_secret = '' !== bono_arm_webhook_get_stored_secret();
+    $premium_active = bono_arm_webhook_premium_armember_active();
     $project_url = 'https://github.com/renatobo/WebHookARM';
     $author_url = 'https://github.com/renatobo';
     $git_updater_url = 'https://github.com/afragen/git-updater';

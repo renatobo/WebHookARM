@@ -528,4 +528,9 @@ $GLOBALS['test_options'] = array();
 bono_arm_webhook_maybe_flag_receiver_upgrade();
 assert_same(false, get_option(BONO_ARM_WEBHOOK_OPTION_UPGRADE_NOTICE), 'A fresh install using WEBHOOKARM_SECRET was flagged as an upgrade.');
 
+// Premium ARMember detection: only premium fires arm_update_profile_external.
+assert_same(false, bono_arm_webhook_premium_armember_active(), 'Premium ARMember was reported active without it.');
+define('MEMBERSHIP_DIR_NAME', 'armember');
+assert_same(true, bono_arm_webhook_premium_armember_active(), 'Premium ARMember was not detected.');
+
 echo "Delivery tests passed.\n";

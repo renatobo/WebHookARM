@@ -115,6 +115,20 @@ function bono_arm_webhook_deactivate() {
 }
 
 /**
+ * Whether premium ARMember is active.
+ *
+ * Only premium ARMember fires arm_update_profile_external. ARMember Lite
+ * (armember-membership), the declared dependency, never does, so with Lite
+ * alone no profile update is ever delivered. Premium defines
+ * MEMBERSHIP_DIR_NAME when it loads; Lite does not.
+ *
+ * @return bool
+ */
+function bono_arm_webhook_premium_armember_active() {
+    return defined('MEMBERSHIP_DIR_NAME');
+}
+
+/**
  * Determine whether webhook delivery is enabled.
  *
  * @return bool
