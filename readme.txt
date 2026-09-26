@@ -4,7 +4,7 @@ Tags: armember, webhook, google sheets, apps script, make, automation, profile u
 Requires at least: 7.0
 Tested up to: 7.0.2
 Requires PHP: 8.0
-Stable tag: 2.1.0
+Stable tag: 2.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -88,7 +88,7 @@ WebHookARM sends:
 
 Credential-like keys are removed recursively and payloads are capped at 256 KiB before being queued. Transient failures are retried after 1, 5, and 15 minutes. Queued data expires after one day. Sites with request-driven WP-Cron disabled must invoke `wp-cron.php` from a system scheduler.
 
-Redirects are followed only for Google Apps Script. Because Apps Script always answers 200, a reply body of `Request rejected` is treated as a permanent failure and `Retry later` as a temporary one.
+Redirects are not followed. Google Apps Script answers every POST with a redirect to the page holding its reply, so for `script.google.com` URLs the plugin fetches that reply with a separate GET request. Because Apps Script always answers 200, a reply body of `Request rejected` is treated as a permanent failure and `Retry later` as a temporary one.
 
 == Frequently Asked Questions ==
 
@@ -117,6 +117,9 @@ Install the Git Updater plugin: https://github.com/afragen/git-updater
 See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 
 == Changelog ==
+
+= 2.1.1 =
+* Fixed Google Apps Script deliveries being recorded as permanent failures with HTTP 400. WordPress followed the Apps Script redirect as a GET that still carried the JSON body, which Google rejects. The plugin now sends the POST without following redirects and fetches the reply with a plain GET, so `Success`, `Retry later`, and `Request rejected` are read correctly. Rows were still being written to the sheet.
 
 = 2.1.0 =
 * Treat the Apps Script reply `Request rejected` as a failed delivery instead of a success. The updated sample script replies `Retry later` when its lock is busy or an unexpected service error occurs, so those cases are retried.
@@ -165,6 +168,9 @@ See `SECURITY.md` in this repository: https://github.com/renatobo/WebHookARM
 * Initial public release.
 
 == Upgrade Notice ==
+
+= 2.1.1 =
+Recommended for Google Apps Script users. Fixes deliveries being shown as failed with HTTP 400 even though the row was written, and lets `Retry later` replies take effect. No receiver changes needed.
 
 = 2.1.0 =
 Existing receivers keep working. Apps Script users should redeploy the updated sample so a busy lock is retried rather than dropped. Custom receivers that redirect must now answer the configured URL directly. More field names are redacted; check your receiver if it relied on any of them.

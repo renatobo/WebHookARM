@@ -434,7 +434,7 @@ function bono_arm_webhook_send_request($body, $delivery_id) {
         'X-WebhookARM-Timestamp' => $timestamp,
     );
     $defaults = array(
-        'redirection' => bono_arm_webhook_redirect_limit($webhook_url),
+        'redirection' => 0,
         'timeout' => 10,
         'headers' => $signing_headers,
         'body' => $body,
@@ -445,6 +445,7 @@ function bono_arm_webhook_send_request($body, $delivery_id) {
      *
      * Signing headers and the body are re-applied afterwards, so the filter
      * can change timeouts, redirects, or add headers but not break signing.
+     * Redirects stay off for Apps Script, whose reply is fetched separately.
      *
      * @param array<string, mixed> $args        wp_safe_remote_post() arguments.
      * @param string               $delivery_id Delivery UUID.
@@ -455,23 +456,77 @@ function bono_arm_webhook_send_request($body, $delivery_id) {
     $args['headers'] = array_merge($extra_headers, $signing_headers);
     $args['body'] = $body;
 
-    return wp_safe_remote_post($request_url, $args);
+    $is_apps_script = bono_arm_webhook_is_apps_script_url($webhook_url);
+
+    if ($is_apps_script) {
+        $args['redirection'] = 0;
+    }
+
+    $response = wp_safe_remote_post($request_url, $args);
+
+    return $is_apps_script ? bono_arm_webhook_fetch_apps_script_reply($response, $args) : $response;
 }
 
 /**
- * Return how many redirects to follow for a webhook URL.
- *
- * Apps Script answers every POST with a 302 to googleusercontent.com, so it
- * needs redirects to reach a 200. Other receivers get none, so a 307 or 308
- * cannot forward the signed body to a host nobody configured.
+ * Whether a webhook URL points at a Google Apps Script web app.
  *
  * @param string $url Webhook URL.
- * @return int
+ * @return bool
  */
-function bono_arm_webhook_redirect_limit($url) {
+function bono_arm_webhook_is_apps_script_url($url) {
     $host = wp_parse_url($url, PHP_URL_HOST);
 
-    return is_string($host) && 'script.google.com' === strtolower($host) ? 3 : 0;
+    return is_string($host) && 'script.google.com' === strtolower($host);
+}
+
+/**
+ * Fetch the reply an Apps Script web app serves after its POST redirect.
+ *
+ * doPost runs on the POST, which answers 302 to a googleusercontent.com echo
+ * URL holding the reply text. WordPress cannot follow that redirect itself:
+ * it switches a 302 to GET but Requests re-sends the JSON body, and Google
+ * answers a GET with a body with 400. So the POST is sent without redirects
+ * and the reply is fetched here with a plain GET.
+ *
+ * @param array|WP_Error       $response Response to the POST.
+ * @param array<string, mixed> $args     Arguments the POST was sent with.
+ * @return array|WP_Error The echo URL's response, or the POST response when
+ *                        there is no redirect to follow.
+ */
+function bono_arm_webhook_fetch_apps_script_reply($response, $args) {
+    if (is_wp_error($response)) {
+        return $response;
+    }
+
+    $status = (int) wp_remote_retrieve_response_code($response);
+
+    if (!in_array($status, array(301, 302, 303, 307, 308), true)) {
+        return $response;
+    }
+
+    $location = wp_remote_retrieve_header($response, 'location');
+    $location = is_array($location) ? (string) end($location) : (string) $location;
+    $host = wp_parse_url($location, PHP_URL_HOST);
+    $scheme = wp_parse_url($location, PHP_URL_SCHEME);
+
+    // Only follow Google's own echo host, so a redirect cannot send the
+    // request anywhere else.
+    if (
+        !is_string($host)
+        || 'https' !== strtolower((string) $scheme)
+        || !preg_match('/(?:^|\.)googleusercontent\.com$/i', $host)
+    ) {
+        bono_arm_webhook_log(sprintf('Apps Script redirect to an unexpected host was not followed (HTTP %d).', $status));
+        return $response;
+    }
+
+    return wp_safe_remote_get(
+        $location,
+        array(
+            'redirection' => 0,
+            'timeout' => isset($args['timeout']) ? (int) $args['timeout'] : 10,
+        )
+    );
 }
 
 /**
