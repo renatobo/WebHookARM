@@ -26,7 +26,9 @@ Keep `README.md` in sync with behavior changes too; it is the GitHub-facing copy
 
 ## Architecture
 
-- `webhookarm.php` — bootstrap, option definitions, settings UI, upgrade notice, test delivery
+- `webhookarm.php` — bootstrap, constants, hook registration, option getters, upgrade detection
+- `includes/admin.php` — settings registration and sanitizers, admin notices, test delivery, settings page controller
+- `includes/views/settings-page.php` — settings page markup; variables come from `bono_arm_webhook_settings_page()`
 - `assets/admin.css`, `assets/admin.js` — settings screen assets, enqueued on that screen only
 - `includes/delivery.php` — payload build and redaction, WP-Cron queue, HMAC signing, send and retry
 - `assets/webhookarm_appscript.gs` — sample Apps Script receiver, must stay in sync with the signing code
@@ -65,6 +67,8 @@ Versions before 2.1 queued in transients; `bono_arm_webhook_get_delivery()` migr
 - `tests/delivery-test.php` also stubs `register_deactivation_hook`, options, cron, and
   HTTP. A new WordPress call in the delivery path needs a stub there.
 - `uninstall.php` runs without the plugin's constants loaded. Hardcode key strings there.
+- Admin code lives in `includes/`, so use `BONO_ARM_WEBHOOK_FILE`, not `__FILE__`, for
+  `plugins_url()` and anything else that needs the main plugin file.
 - `tests/delivery-test.php` loads `webhookarm.php` behind hand-written stubs. Adding a
   WordPress call at file load time breaks the test run until a stub is added.
 - `build.sh` derives the zip name from `basename $PWD`, so the checkout directory must
