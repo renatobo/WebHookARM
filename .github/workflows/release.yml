@@ -1,0 +1,129 @@
+name: Release merged PR
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Merged release PR number to retry
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: release-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.pull_request.merged == true &&
+       contains(github.event.pull_request.labels.*.name, 'release'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.pr.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Verify merged release PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+        run: python3 -B .github/scripts/release.py resolve
+
+  quality-0:
+    needs: resolve
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.resolve.outputs.sha }}
+
+  quality-1:
+    needs: resolve
+    uses: ./.github/workflows/integration.yml
+    with:
+      ref: ${{ needs.resolve.outputs.sha }}
+
+  quality-2:
+    needs: resolve
+    uses: ./.github/workflows/psalm.yml
+    with:
+      ref: ${{ needs.resolve.outputs.sha }}
+
+  quality-3:
+    needs: resolve
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    uses: ./.github/workflows/codeql.yml
+    with:
+      ref: ${{ needs.resolve.outputs.sha }}
+
+  quality-4:
+    needs: resolve
+    uses: ./.github/workflows/release-checks.yml
+    with:
+      ref: ${{ needs.resolve.outputs.sha }}
+
+  publish:
+    needs: [resolve, quality-0, quality-1, quality-2, quality-3, quality-4]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.sha }}
+          fetch-depth: 0
+      - name: Validate release version, notes and commit
+        id: metadata
+        env:
+          RELEASE_SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          git merge-base --is-ancestor "$RELEASE_SHA" origin/main
+          python3 -B .github/scripts/release.py metadata
+      - name: Download the package tested by CI
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs['quality-4'].outputs.artifact_id }}
+          path: dist
+      - name: Verify package identity and checksum
+        env:
+          RELEASE_SHA: ${{ needs.resolve.outputs.sha }}
+        run: python3 -B .github/scripts/release.py verify
+      - name: Tag and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.metadata.outputs.version }}
+          ZIP: ${{ steps.metadata.outputs.zip }}
+          RELEASE_SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          set -euo pipefail
+          TAG="v$VERSION"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG already exists; refusing to overwrite it."
+            exit 1
+          fi
+          if git show-ref --verify --quiet "refs/tags/$TAG"; then
+            test "$(git rev-list -n 1 "$TAG")" = "$RELEASE_SHA"
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email 'github-actions[bot]@users.noreply.github.com'
+            git tag -a "$TAG" "$RELEASE_SHA" -m "Release $VERSION"
+            git push origin "refs/tags/$TAG"
+          fi
+          gh release create "$TAG" "$ZIP" "$ZIP.sha256" --verify-tag --draft \
+            --title "WebHookARM $VERSION" --notes-file "release-notes/$VERSION.md"
+          gh release edit "$TAG" --draft=false --latest
