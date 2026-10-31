@@ -1,0 +1,15 @@
+{
+  "main": "webhookarm.php",
+  "constant": "BONO_ARM_WEBHOOK_VERSION",
+  "slug": "WebHookARM",
+  "zip": "WebHookARM-{version}.zip",
+  "build": "bash build.sh",
+  "php": "8.2",
+  "gates": [
+    "ci.yml",
+    "integration.yml",
+    "psalm.yml",
+    "codeql.yml"
+  ],
+  "readme": true
+}

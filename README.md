@@ -155,45 +155,10 @@ This plugin includes Git Updater-compatible headers and release assets. To recei
 
 ## Releases
 
-Releases are generated automatically with GitHub Actions:
-
-1. Update the version in `webhookarm.php` and `readme.txt`.
-2. Push the change to `main`.
-3. The `update-stable-tag` workflow creates the matching `vX.Y.Z` tag.
-4. The `package-plugin` workflow builds the plugin zip and publishes the GitHub release asset.
-
-Release packaging keeps only WordPress runtime files:
-
-- Keeps `README.md`
-- Removes all other `.md` files
-- Removes `.sh` scripts that are not used by WordPress at runtime
-
-Latest planned release: `2.2.0`
-
-- Keeps permanently failed deliveries for 7 days and resends them on request.
-- Optional "Send only these fields" allowlist.
-- Warns when ARMember premium is not active.
-- Schedules the daily cleanup from the queue path too.
-
-Previous release: `2.1.3`
-
-- Stops the daily cleanup and deactivation from erasing the Delivery status totals and last failure.
-
-Previous release: `2.1.2`
-
-- Declares compatibility with WordPress 7.1.2. No code changes.
-
-Previous release: `2.1.1`
-
-- Fixes Google Apps Script deliveries being recorded as failed with HTTP 400 by fetching the Apps Script reply with a plain GET instead of letting WordPress follow the redirect.
-
-Previous release: `2.1.0`
-
-- Recognises Apps Script rejection replies instead of recording them as delivered, and lets an updated sample script ask for a retry.
-- Moves the delivery queue out of transients so a persistent object cache cannot evict pending deliveries.
-- Adds a delivery status panel, a test delivery button, delivery hooks, and a `WEBHOOKARM_SECRET` constant.
-- Stops following redirects for receivers other than Google Apps Script.
-- Cleans every site on multisite uninstall, and removes queued data on deactivation.
+Prepare matching version metadata and `release-notes/X.Y.Z.md` in a PR into
+`main`. Apply the **`release`** label before merging. GitHub runs the exact
+merge commit through the existing CI gates and publishes its tested ZIP and
+checksum automatically. See `AGENTS.md` for the complete procedure and retries.
 
 ## Troubleshooting
 

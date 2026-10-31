@@ -80,18 +80,7 @@ A permanent failure moves the payload to `bono_arm_webhook_failed_<uuid>` for 7 
 
 ## Release
 
-Push to `main`. `update-stable-tag.yml` tags `v<Stable tag>`, then calls
-`package-plugin.yml` via `workflow_call` to build and upload the asset Git Updater
-consumes.
-
-That call is deliberate, not a convenience. A tag pushed with the default
-`GITHUB_TOKEN` cannot trigger the `push: tags` event, so `package-plugin.yml` never
-fires on its own from an automated tag. v2.0.0 tagged with no release because of
-this. If a release goes missing, the fallback is deleting the remote tag and
-re-pushing it from a local clone, which fires the `push` trigger normally.
-
-Bump `Version` in `webhookarm.php`, `Stable tag` plus the changelog and upgrade notice
-in `readme.txt`, and note anything user-visible in `README.md`.
+Follow the labelled-PR process in `AGENTS.md`: align version/readme/changelog and release notes, apply `release` before merging into `main`, then verify the automatic publication. The old main-push tagger and tag publisher are removed; `release.sh` refuses direct tagging. Existing incomplete releases require explicit inspection, not tag deletion/recreation.
 
 ## Non-goals
 

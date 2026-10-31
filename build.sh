@@ -41,7 +41,7 @@ trap cleanup EXIT
 mkdir -p "$PACKAGE_DIR"
 
 rsync -a \
-  --exclude '.git/' \
+  --exclude '.git' \
   --exclude '.github/' \
   --exclude '.agents/' \
   --exclude '.claude/' \
